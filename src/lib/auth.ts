@@ -2,7 +2,6 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { verifyOtpCode } from "@/lib/email-otp";
 
