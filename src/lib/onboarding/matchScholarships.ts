@@ -7,6 +7,7 @@ export function buildOnboardingProfile(
   answers?: Partial<CommonAnswers>,
   extras?: Partial<StudentProfileFull>,
 ): StudentProfileFull {
+  const region = answers?.region;
   return {
     user_id: "onboarding-temp",
     gpa_recent: transcript.gpa_recent,
@@ -17,11 +18,11 @@ export function buildOnboardingProfile(
       typeof answers?.income_bracket === "number" ? answers.income_bracket : null,
     special_status: extras?.special_status ?? ["해당없음"],
     major: transcript.department,
-    region: answers
+    region: region
       ? {
-          sido: answers.region.sido,
-          sigungu: answers.region.sigungu,
-          years_resided: answers.region.years_resided,
+          sido: region.sido,
+          sigungu: region.sigungu,
+          years_resided: region.years_resided,
         }
       : undefined,
     updated_at: new Date().toISOString(),
