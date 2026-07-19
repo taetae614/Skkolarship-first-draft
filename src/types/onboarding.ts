@@ -59,7 +59,7 @@ export interface RegionAffinity {
 }
 
 export interface StudentProfileFull
-  extends Omit<BaseStudentProfile, "region" | "currentScholarships">,
+  extends Omit<BaseStudentProfile, "region" | "currentScholarships" | "income_bracket">,
     Partial<ParsedTranscript>,
     Partial<CommonAnswers> {
   special_status: SpecialStatus[];
