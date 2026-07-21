@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
 const AUTH_PAGES = ["/login"];
-const PROTECTED_PREFIXES = ["/dashboard", "/onboarding"];
+const PROTECTED_PREFIXES = ["/dashboard", "/onboarding", "/admin"];
 
 export default auth((request) => {
   const { pathname } = request.nextUrl;
@@ -22,5 +22,5 @@ export default auth((request) => {
 });
 
 export const config = {
-  matcher: ["/login", "/dashboard/:path*", "/onboarding/:path*"],
+  matcher: ["/login", "/dashboard/:path*", "/onboarding/:path*", "/admin/:path*"],
 };

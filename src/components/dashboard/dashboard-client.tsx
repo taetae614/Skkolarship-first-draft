@@ -59,13 +59,21 @@ export default function DashboardClient({ scholarships }: Props) {
         <div className="rounded-[2rem] bg-slate-950 p-8 text-white shadow-xl shadow-slate-300/20">
           <div className="flex items-start justify-between gap-4">
             <p className="text-sm font-semibold tracking-[0.25em] text-cyan-300">SKKOLARSHIP</p>
-            <button
-              type="button"
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              className="shrink-0 rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-            >
-              로그아웃
-            </button>
+            <div className="flex shrink-0 items-center gap-3">
+              <Link
+                href="/admin/scholarships"
+                className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+              >
+                공고 자동 등록
+              </Link>
+              <button
+                type="button"
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+              >
+                로그아웃
+              </button>
+            </div>
           </div>
           <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { mockParseTranscript } from "@/lib/onboarding/mockParseTranscript";
 import { useOnboardingStore } from "@/store/useOnboardingStore";
 import type { ParsedTranscript } from "@/types/onboarding";
 import { useRouter } from "next/navigation";
@@ -12,17 +11,36 @@ export default function UploadOnboardingClient() {
   const transcript = useOnboardingStore((state) => state.transcript);
   const [dragActive, setDragActive] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [localTranscript, setLocalTranscript] = useState<ParsedTranscript | null>(transcript);
 
   const confirmNeeded = useMemo(() => localTranscript?.needs_confirmation ?? false, [localTranscript]);
 
   async function handleFiles(files: FileList | null) {
-    if (!files?.length) return;
+    const file = files?.[0];
+    if (!file) return;
+
     setLoading(true);
-    const parsed = await mockParseTranscript();
-    setLocalTranscript(parsed);
-    setTranscript(parsed);
-    setLoading(false);
+    setError(null);
+
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch("/api/upload-transcript", { method: "POST", body });
+      const data = (await response.json()) as { ok: boolean; transcript?: ParsedTranscript; message?: string };
+
+      if (!data.ok || !data.transcript) {
+        setError(data.message ?? "성적증명서 분석에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+
+      setLocalTranscript(data.transcript);
+      setTranscript(data.transcript);
+    } catch {
+      setError("성적증명서 분석 중 오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -57,7 +75,11 @@ export default function UploadOnboardingClient() {
         </label>
 
         {loading ? (
-          <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">분석 중...</div>
+          <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">Upstage로 문서 분석 중...</div>
+        ) : null}
+
+        {error ? (
+          <div className="mt-6 rounded-2xl bg-rose-50 p-4 text-sm text-rose-700">{error}</div>
         ) : null}
 
         {localTranscript ? (
