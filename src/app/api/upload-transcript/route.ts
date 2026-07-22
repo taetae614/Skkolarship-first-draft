@@ -8,8 +8,15 @@ const TRANSCRIPT_SCHEMA: JsonSchema = {
     university: { type: "string", description: "대학교 이름" },
     college: { type: "string", description: "단과대학 이름" },
     department: { type: "string", description: "학과/전공 이름" },
-    grade_level: { type: "string", description: "현재 학년. 1, 2, 3, 4 중 하나의 숫자 문자열" },
-    semester_progress: { type: "string", description: "몇 학년 몇 학기까지 이수했는지 (예: 3-1)" },
+    regular_semester_labels: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "성적표에 나온 학기 구분 표시(예: [2023년 1학기], [2024년 2학기]) 중 '정규학기'만 연대순으로 나열. " +
+        "각 항목은 'YYYY-N' 형식으로 적을 것 (N은 1 또는 2). 예: [2023년 1학기] -> '2023-1'. " +
+        "도전학기, 계절학기, 여름학기, 겨울학기, 교환학기 등 '1학기'/'2학기'가 아닌 특수 학기는 절대 포함하지 말 것. " +
+        "연도가 중간에 비어있어도(휴학 등) 있는 그대로 나열하면 됨 — 학년 계산은 이 목록의 개수로 별도 계산함.",
+    },
     gpa_cumulative: { type: "number", description: "전체 누적 평점(GPA)" },
     gpa_cumulative_scale: { type: "number", description: "평점 만점 기준. 4.5 또는 4.3" },
     percentile_cumulative: { type: "number", description: "누적 백분율(있는 경우), 0~100 사이 숫자" },
@@ -27,7 +34,7 @@ const TRANSCRIPT_SCHEMA: JsonSchema = {
   required: [
     "university",
     "department",
-    "grade_level",
+    "regular_semester_labels",
     "gpa_cumulative",
     "gpa_recent",
     "credits_recent",
@@ -63,13 +70,14 @@ export async function POST(request: Request) {
 }
 
 function normalizeTranscript(extracted: Record<string, unknown>): ParsedTranscript {
-  const gradeLevel = toStringOrNull(extracted.grade_level);
+  const semesterLabels = toRegularSemesterLabels(extracted.regular_semester_labels);
+  const { gradeLevel, semesterProgress } = deriveGradeLevel(semesterLabels);
   return {
     university: toStringOrNull(extracted.university),
     college: toStringOrNull(extracted.college),
     department: toStringOrNull(extracted.department),
-    grade_level: gradeLevel && ["1", "2", "3", "4"].includes(gradeLevel) ? (gradeLevel as "1" | "2" | "3" | "4") : null,
-    semester_progress: toStringOrNull(extracted.semester_progress),
+    grade_level: gradeLevel,
+    semester_progress: semesterProgress,
     gpa_cumulative: toNumberOrNull(extracted.gpa_cumulative),
     gpa_cumulative_scale: toGpaScale(extracted.gpa_cumulative_scale),
     percentile_cumulative: toNumberOrNull(extracted.percentile_cumulative),
@@ -83,6 +91,36 @@ function normalizeTranscript(extracted: Record<string, unknown>): ParsedTranscri
     exchange_semester_detected: toBooleanOrNull(extracted.exchange_semester_detected),
     parsed_at: new Date().toISOString(),
     needs_confirmation: true,
+  };
+}
+
+const SEMESTER_LABEL_PATTERN = /^(\d{4})-([12])$/;
+
+// Grade level from *count of regular semesters completed*, not calendar years
+// since admission — a student who took a leave of absence (휴학) shouldn't be
+// bumped up a year just because time passed.
+function toRegularSemesterLabels(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const labels = value.filter((item): item is string => typeof item === "string" && SEMESTER_LABEL_PATTERN.test(item));
+  return Array.from(new Set(labels)).sort((a, b) => {
+    const [, yearA, semA] = a.match(SEMESTER_LABEL_PATTERN)!;
+    const [, yearB, semB] = b.match(SEMESTER_LABEL_PATTERN)!;
+    return Number(yearA) * 10 + Number(semA) - (Number(yearB) * 10 + Number(semB));
+  });
+}
+
+function deriveGradeLevel(labels: string[]): {
+  gradeLevel: "1" | "2" | "3" | "4" | null;
+  semesterProgress: string | null;
+} {
+  const count = labels.length;
+  if (count === 0) return { gradeLevel: null, semesterProgress: null };
+
+  const gradeNum = Math.min(4, Math.ceil(count / 2));
+  const semesterInYear = ((count - 1) % 2) + 1;
+  return {
+    gradeLevel: String(gradeNum) as "1" | "2" | "3" | "4",
+    semesterProgress: `${gradeNum}-${semesterInYear}`,
   };
 }
 
