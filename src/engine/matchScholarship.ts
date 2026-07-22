@@ -128,7 +128,11 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
   // 연속 1년 이상 거주" 등) and onboarding collects profile.region, but nothing
   // was ever connecting the two, so residency-only scholarships (구청/시 장학금)
   // always fell through as ELIGIBLE regardless of where the student lives.
-  if (eligibility.region_requirement) {
+  // 강원랜드 멘토링 장학은 거주지가 아니라 "출신 고교" 소재지 조건이라 이 일반 거주지
+  // 파서로는 애초에 해석이 안 되고, 아래(강원랜드 전용 블록)에서 region_affinity.
+  // high_school_sido로 이미 정확히 판별하므로 여기서 또 돌리면 "자동 판별 어려움"이라는
+  // 엉뚱한 중복 안내가 하나 더 뜬다 — 여기서는 건너뛴다.
+  if (eligibility.region_requirement && scholarship.id !== "ext-gangwonland-mentoring") {
     // "OO 소재 대학 재학" is a university-location requirement, not a residence one,
     // so it doesn't need profile.region at all. 성균관대학교는 학과가 서울(인문사회)
     // 캠퍼스든 수원(자연과학) 캠퍼스든 관계없이 "서울 소재 대학"으로 인정되는 학교라
