@@ -26,29 +26,41 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
   let status: EligibilityStatus = "지원가능";
 
   const eligibility = scholarship.eligibility;
-  const currentScholarships = profile.currentScholarships ?? [];
+  // profile.currentScholarships (camelCase, {type,name}[]) is declared on the base
+  // StudentProfile type, but StudentProfileFull — the shape every real onboarding
+  // profile actually is — explicitly Omits it and stores this as current_scholarships
+  // (snake_case, category strings like "교외재단/기업") instead. So `profile.currentScholarships`
+  // has always read as undefined for real users, meaning the "중복수혜 불가" block below
+  // silently never fired for anyone. Reading the field that's actually populated instead.
+  const currentScholarshipCategories =
+    (profile as unknown as { current_scholarships?: string[] }).current_scholarships ?? [];
+  const externalFundingCategories = currentScholarshipCategories.filter(
+    (category) => category === "교외재단/기업" || category === "부모직장학자금지원",
+  );
 
-  // 중복 수혜
+  // 중복 수혜 — the onboarding answer is a coarse category, not a type-matched
+  // scholarship record, so an external-funding conflict can't be confirmed as
+  // definitely the SAME type (등록금성/생활비성) as this scholarship — surfaced as
+  // "조건부가능, 직접 확인" rather than a confident 지원불가.
   if (scholarship.duplicate_conflict.allows_other_scholarships === "불가") {
-    const conflict = currentScholarships.find((item) => item.type === scholarship.type);
-    if (conflict) {
-      status = "지원불가";
-      unmetConditions.push("중복수혜 불가");
-      const detail = `현재 수혜 중인 ${conflict.name}과 중복 수혜가 불가능합니다.`;
+    if (externalFundingCategories.length > 0) {
+      // First possible status mutation in the function — nothing to preserve yet.
+      status = "조건부가능";
+      const detail = `현재 받고 있는 ${externalFundingCategories.join(", ")}과 중복 수혜가 가능한지 확인이 필요합니다.`;
       reasons.push(detail);
       criteria.push({
         key: "duplicate_conflict",
         label: "중복 수혜 여부",
         met: false,
-        detail,
-        actionHint: "이미 받고 있는 장학금과는 중복 신청이 어려운 조건이에요.",
+        detail: `이 장학금은 중복 수혜가 불가능해요. 현재 수혜 중: ${externalFundingCategories.join(", ")}`,
+        actionHint: "재단/기관에 중복 수혜 가능 여부를 직접 확인해주세요.",
       });
     } else {
       criteria.push({
         key: "duplicate_conflict",
         label: "중복 수혜 여부",
         met: true,
-        detail: "현재 수혜 중인 동일 유형 장학금이 없어 중복 조건에 해당하지 않습니다.",
+        detail: "현재 수혜 중인 외부 장학금이 없어 중복 조건에 해당하지 않습니다.",
       });
     }
   }
@@ -521,6 +533,32 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
         }
         criteria.push({ key, label: gate.label, met, detail: gate.requirementText });
       }
+    }
+  }
+
+  // 우인장학재단 — cap_rule: "타 장학금(국가장학금/교내/근로장학금 제외) 수혜 학생은
+  // 선발 제외". Unlike the generic "불가" case above, this scholarship names its own
+  // exceptions explicitly, so it's worth a dedicated hard gate rather than staying as
+  // an informational-only cap_rule note.
+  if (scholarship.id === "ext-wooin") {
+    if (externalFundingCategories.length > 0) {
+      status = "지원불가";
+      unmetConditions.push("타 장학금(국가장학금·교내·근로장학금 제외) 수혜 중");
+      reasons.push("국가장학금·교내·근로장학금을 제외한 타 장학금을 받고 있으면 선발에서 제외돼요.");
+      criteria.push({
+        key: "other_scholarship_exclusion",
+        label: "타 장학금 수혜 여부",
+        met: false,
+        detail: `현재 수혜 중: ${externalFundingCategories.join(", ")} — 국가장학금·교내·근로장학금 외 장학금은 제외 대상이에요.`,
+        actionHint: "해당 장학금 수혜가 종료되면 다시 확인해보세요.",
+      });
+    } else {
+      criteria.push({
+        key: "other_scholarship_exclusion",
+        label: "타 장학금 수혜 여부",
+        met: true,
+        detail: "국가장학금·교내·근로장학금 외 타 장학금 수혜 이력이 없어요.",
+      });
     }
   }
 

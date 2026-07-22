@@ -63,7 +63,7 @@ export function convertScholarship(source: (typeof scholarshipSeed)[number]): Ne
       other_conditions: source.eligibilityRules.notes ?? null,
     },
     duplicate_conflict: {
-      allows_other_scholarships: "미확인",
+      allows_other_scholarships: source.duplicateConflictRules?.allowsOtherScholarships ?? "미확인",
       cap_rule: source.duplicateConflictRules?.amountCapNote ?? null,
     },
     required_docs: source.requiredDocs,

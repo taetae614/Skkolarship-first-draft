@@ -47,6 +47,7 @@ export type Scholarship = {
     notes?: string | null;
   };
   duplicateConflictRules?: {
+    allowsOtherScholarships?: "가능" | "불가" | "조건부" | "미확인";
     excludedWith?: string[];
     amountCapNote?: string | null;
   } | null;
@@ -133,6 +134,7 @@ function convert(raw: RawScholarship): Scholarship {
       notes: raw.eligibility.other_conditions,
     },
     duplicateConflictRules: {
+      allowsOtherScholarships: raw.duplicate_conflict.allows_other_scholarships as "가능" | "불가" | "조건부" | "미확인",
       excludedWith: raw.duplicate_conflict.cap_rule ? [raw.duplicate_conflict.cap_rule] : undefined,
       amountCapNote: raw.duplicate_conflict.cap_rule,
     },
