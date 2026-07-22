@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Scholarship } from "@/lib/scholarships";
+import { SCHOLARSHIP_STATUS_LABELS } from "@/lib/scholarships";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 
 export default function ScholarshipCard({
@@ -26,7 +27,7 @@ export default function ScholarshipCard({
         <div>
           <div className="flex flex-wrap gap-2">
             <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-medium text-white">
-              {scholarship.status}
+              {SCHOLARSHIP_STATUS_LABELS[scholarship.status]}
             </span>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
               {scholarship.type === "TUITION" ? "등록금성" : "생활비성"}

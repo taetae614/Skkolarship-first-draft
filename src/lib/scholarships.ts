@@ -5,6 +5,12 @@ export type ScholarshipStatus = "ELIGIBLE" | "CONDITIONAL" | "INELIGIBLE";
 export type ScholarshipType = "TUITION" | "LIVING";
 export type ScholarshipSource = "CAMPUS" | "EXTERNAL";
 
+export const SCHOLARSHIP_STATUS_LABELS: Record<ScholarshipStatus, string> = {
+  ELIGIBLE: "지원가능",
+  CONDITIONAL: "조건부가능",
+  INELIGIBLE: "지원불가",
+};
+
 export type Scholarship = {
   id: string;
   name: string;

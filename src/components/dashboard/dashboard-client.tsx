@@ -4,8 +4,10 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import type { Scholarship, ScholarshipStatus } from "@/lib/scholarships";
+import { SCHOLARSHIP_STATUS_LABELS } from "@/lib/scholarships";
 import FilterBar from "@/components/dashboard/filter-bar";
 import ScholarshipCard from "@/components/dashboard/scholarship-card";
+import ScholarshipCalendar from "@/components/dashboard/scholarship-calendar";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 
 type Props = {
@@ -13,9 +15,15 @@ type Props = {
 };
 
 type SortKey = "deadline" | "amount" | "fit";
-type TabKey = ScholarshipStatus | "FAVORITES";
+type TabKey = ScholarshipStatus | "FAVORITES" | "CALENDAR";
 
 const statusOrder: ScholarshipStatus[] = ["ELIGIBLE", "CONDITIONAL", "INELIGIBLE"];
+
+const TAB_LABELS: Record<TabKey, string> = {
+  ...SCHOLARSHIP_STATUS_LABELS,
+  FAVORITES: "찜한 장학금",
+  CALENDAR: "찜한 장학금 캘린더",
+};
 
 export default function DashboardClient({ scholarships }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>("ELIGIBLE");
@@ -28,11 +36,18 @@ export default function DashboardClient({ scholarships }: Props) {
     [scholarships],
   );
 
+  const favoriteScholarships = useMemo(
+    () => scholarships.filter((scholarship) => favorites.includes(scholarship.id)),
+    [scholarships, favorites],
+  );
+
   const scopedScholarships = useMemo(() => {
     const base =
       activeTab === "FAVORITES"
-        ? scholarships.filter((scholarship) => favorites.includes(scholarship.id))
-        : scholarships.filter((scholarship) => scholarship.status === activeTab);
+        ? favoriteScholarships
+        : activeTab === "CALENDAR"
+          ? []
+          : scholarships.filter((scholarship) => scholarship.status === activeTab);
 
     return base
       .filter((scholarship) =>
@@ -45,7 +60,7 @@ export default function DashboardClient({ scholarships }: Props) {
         const rightEnd = right.applyEnd ? new Date(right.applyEnd).getTime() : Number.MAX_SAFE_INTEGER;
         return leftEnd - rightEnd;
       });
-  }, [activeTags, activeTab, favorites, scholarships, sortKey]);
+  }, [activeTags, activeTab, favoriteScholarships, scholarships, sortKey]);
 
   function toggleTag(tag: string) {
     setActiveTags((current) =>
@@ -102,7 +117,7 @@ export default function DashboardClient({ scholarships }: Props) {
         <section className="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap gap-2">
-              {([...statusOrder, "FAVORITES"] as TabKey[]).map((tab) => (
+              {([...statusOrder, "FAVORITES", "CALENDAR"] as TabKey[]).map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -113,45 +128,53 @@ export default function DashboardClient({ scholarships }: Props) {
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
-                  {tab === "FAVORITES" ? "찜한 장학금" : tab}
+                  {TAB_LABELS[tab]}
                 </button>
               ))}
             </div>
 
-            <FilterBar sortKey={sortKey} onSortChange={setSortKey} />
+            {activeTab !== "CALENDAR" ? <FilterBar sortKey={sortKey} onSortChange={setSortKey} /> : null}
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-x-1 gap-y-2 text-sm">
-            {allTags.map((tag, index) => (
-              <span key={tag} className="flex items-center">
-                {index > 0 ? <span className="mr-1 text-slate-300">|</span> : null}
-                <button
-                  type="button"
-                  onClick={() => toggleTag(tag)}
-                  className={`rounded-md px-1 py-0.5 transition-all duration-150 hover:scale-110 ${
-                    activeTags.includes(tag)
-                      ? "font-semibold text-pine-700 underline underline-offset-4"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  {tag}
-                </button>
-              </span>
-            ))}
-          </div>
+          {activeTab !== "CALENDAR" ? (
+            <div className="mt-6 flex flex-wrap items-center gap-x-1 gap-y-2 text-sm">
+              {allTags.map((tag, index) => (
+                <span key={tag} className="flex items-center">
+                  {index > 0 ? <span className="mr-1 text-slate-300">|</span> : null}
+                  <button
+                    type="button"
+                    onClick={() => toggleTag(tag)}
+                    className={`rounded-md px-1 py-0.5 transition-all duration-150 hover:scale-110 ${
+                      activeTags.includes(tag)
+                        ? "font-semibold text-pine-700 underline underline-offset-4"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
         </section>
 
-        <section className="mt-8 grid gap-5 lg:grid-cols-2">
-          {scopedScholarships.map((scholarship) => (
-            <ScholarshipCard key={scholarship.id} scholarship={scholarship} />
-          ))}
-        </section>
+        {activeTab === "CALENDAR" ? (
+          <ScholarshipCalendar scholarships={favoriteScholarships} />
+        ) : (
+          <>
+            <section className="mt-8 grid gap-5 lg:grid-cols-2">
+              {scopedScholarships.map((scholarship) => (
+                <ScholarshipCard key={scholarship.id} scholarship={scholarship} />
+              ))}
+            </section>
 
-        {scopedScholarships.length === 0 ? (
-          <div className="mt-8 rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
-            선택한 조건에 맞는 장학금이 없습니다.
-          </div>
-        ) : null}
+            {scopedScholarships.length === 0 ? (
+              <div className="mt-8 rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
+                선택한 조건에 맞는 장학금이 없습니다.
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </main>
   );
