@@ -214,39 +214,64 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
   // 100), so pick whichever matches the requirement instead of always comparing a
   // 4.5-scale number against a 100-point threshold, which used to always read as a
   // huge shortfall (e.g. "4.3 < 90") and reject every student regardless of merit.
-  if (eligibility.gpa_cumulative_min != null) {
-    const use100Scale = eligibility.gpa_scale === 100;
-    const percentileCumulative = (profile as unknown as { percentile_cumulative?: number | null }).percentile_cumulative ?? null;
-    const studentScore = use100Scale ? percentileCumulative : profile.gpa_cumulative;
-    const scaleLabel = use100Scale ? "백분위" : "평점";
+  // gpa_condition_grades restricts this whole check to specific grade_level digits
+  // (e.g. 인문100년장학금: only 3학년 has a GPA bar at all, 1학년 is exempt). Null
+  // means "applies whenever gpa_cumulative_min is set", the same as before this
+  // field existed.
+  const gpaConditionApplies =
+    !eligibility.gpa_condition_grades ||
+    eligibility.gpa_condition_grades.length === 0 ||
+    (profile.grade_level != null && eligibility.gpa_condition_grades.includes(profile.grade_level));
 
-    if (studentScore == null) {
-      status = status === "지원불가" ? status : "조건부가능";
-      reasons.push(`전체 ${scaleLabel} 정보가 없어 조건부 가능으로 분류했습니다.`);
-      criteria.push({
-        key: "gpa_cumulative",
-        label: "누적 평점",
-        met: false,
-        detail: `기준 ${scaleLabel} ${eligibility.gpa_cumulative_min}점 이상 / 내 ${scaleLabel} 정보 없음`,
-        actionHint: "성적증명서 정보를 다시 확인해주세요.",
-      });
-    } else if (studentScore < eligibility.gpa_cumulative_min) {
-      status = "지원불가";
-      unmetConditions.push("누적 GPA 미달");
-      reasons.push(`전체 ${scaleLabel} 기준 ${eligibility.gpa_cumulative_min}점이지만 현재 ${studentScore}점입니다.`);
-      criteria.push({
-        key: "gpa_cumulative",
-        label: "누적 평점",
-        met: false,
-        detail: `기준 ${scaleLabel} ${eligibility.gpa_cumulative_min}점 이상 / 내 ${scaleLabel} ${studentScore}점`,
-        actionHint: "누적 평점을 더 올려보세요.",
-      });
-    } else {
+  if (eligibility.gpa_cumulative_min != null && gpaConditionApplies) {
+    // gpa_cumulative_min_alt is an OR-alternative on a possibly different scale
+    // (e.g. "백분위 90점 또는 평점 3.6/4.5 이상") — met if EITHER threshold clears.
+    const branches = [{ threshold: eligibility.gpa_cumulative_min, scale: eligibility.gpa_scale }];
+    if (eligibility.gpa_cumulative_min_alt != null && eligibility.gpa_scale_alt != null) {
+      branches.push({ threshold: eligibility.gpa_cumulative_min_alt, scale: eligibility.gpa_scale_alt });
+    }
+
+    const percentileCumulative = (profile as unknown as { percentile_cumulative?: number | null }).percentile_cumulative ?? null;
+    const resolved = branches.map((branch) => {
+      const scaleLabel = branch.scale === 100 ? "백분위" : "평점";
+      const score = branch.scale === 100 ? percentileCumulative : profile.gpa_cumulative;
+      return { ...branch, scaleLabel, score };
+    });
+
+    const metBranch = resolved.find((branch) => branch.score != null && branch.score >= branch.threshold);
+    const unknownBranches = resolved.filter((branch) => branch.score == null);
+    const requirementText = resolved.map((branch) => `${branch.scaleLabel} ${branch.threshold}점 이상`).join(" 또는 ");
+
+    if (metBranch) {
       criteria.push({
         key: "gpa_cumulative",
         label: "누적 평점",
         met: true,
-        detail: `기준 ${scaleLabel} ${eligibility.gpa_cumulative_min}점 이상 / 내 ${scaleLabel} ${studentScore}점`,
+        detail: `기준 ${requirementText} / 내 ${metBranch.scaleLabel} ${metBranch.score}점`,
+      });
+    } else if (unknownBranches.length > 0) {
+      // At least one OR-branch couldn't be evaluated (missing score for that scale) —
+      // can't confidently rule the student out via the branches we could check.
+      status = status === "지원불가" ? status : "조건부가능";
+      reasons.push(`전체 성적 정보가 부족해 조건부 가능으로 분류했습니다. (기준: ${requirementText})`);
+      criteria.push({
+        key: "gpa_cumulative",
+        label: "누적 평점",
+        met: false,
+        detail: `기준 ${requirementText} / 정보 부족: ${unknownBranches.map((b) => b.scaleLabel).join(", ")} 정보 없음`,
+        actionHint: "성적증명서 정보를 다시 확인해주세요.",
+      });
+    } else {
+      status = "지원불가";
+      unmetConditions.push("누적 GPA 미달");
+      const detail = resolved.map((b) => `${b.scaleLabel} ${b.score}점`).join(" / ");
+      reasons.push(`전체 성적 기준(${requirementText})에 못 미칩니다. 현재 ${detail}.`);
+      criteria.push({
+        key: "gpa_cumulative",
+        label: "누적 평점",
+        met: false,
+        detail: `기준 ${requirementText} / 내 성적 ${detail}`,
+        actionHint: "누적 평점을 더 올려보세요.",
       });
     }
   }

@@ -24,6 +24,15 @@ export interface ScholarshipEligibility {
   gpa_recent_min: number | null;
   gpa_cumulative_min: number | null;
   gpa_scale: 4.5 | 4.3 | 100;
+  // OR-alternative to gpa_cumulative_min on a different scale (e.g. "백분위 90점
+  // 또는 평점 3.6/4.5 이상") — met if EITHER threshold is satisfied. Null when a
+  // scholarship only has one GPA path.
+  gpa_cumulative_min_alt: number | null;
+  gpa_scale_alt: 4.5 | 4.3 | 100 | null;
+  // Restricts gpa_cumulative_min(_alt) to specific grade_level digits (e.g. ["3"]
+  // when only 3학년 has a GPA bar and 1학년 is exempt). Null means the GPA condition
+  // applies to every grade matched by grade_level, same as before this field existed.
+  gpa_condition_grades: string[] | null;
   credits_recent_min: number | null;
   credits_recent_min_last_semester: number | null;
   income_bracket_max: number | null;
