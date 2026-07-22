@@ -15,8 +15,8 @@ export default function BestCombinationCard({
   combination: CombinationResult;
   userName: string | null;
 }) {
-  const [showConflicts, setShowConflicts] = useState(false);
-  const { totalAmount, combination: items, excludedDueToConflict } = combination;
+  const [showExcluded, setShowExcluded] = useState(false);
+  const { totalAmount, combination: items, excludedScholarships } = combination;
 
   if (items.length === 0) {
     return null;
@@ -58,20 +58,25 @@ export default function BestCombinationCard({
         <span className="text-cyan-300">{formatKrw(totalAmount)}</span>입니다!
       </p>
 
-      {excludedDueToConflict.length > 0 ? (
+      {excludedScholarships.length > 0 ? (
         <div className="mt-4">
           <button
             type="button"
-            onClick={() => setShowConflicts((value) => !value)}
+            onClick={() => setShowExcluded((value) => !value)}
             className="text-sm font-medium text-navy-500 underline underline-offset-4 transition hover:text-navy-800"
           >
-            {showConflicts ? "중복불가로 제외된 장학금 숨기기" : `중복불가로 제외된 장학금 ${excludedDueToConflict.length}개 보기`}
+            {showExcluded ? "제외된 장학금 숨기기" : `제외된 장학금 ${excludedScholarships.length}개 보기`}
           </button>
-          {showConflicts ? (
+          {showExcluded ? (
             <ul className="mt-3 space-y-1.5 text-sm text-navy-500">
-              {excludedDueToConflict.map(({ scholarship, conflictWith }) => (
-                <li key={scholarship.id} className="rounded-xl bg-white/60 px-3 py-2">
-                  <span className="font-medium text-navy-700">{scholarship.name}</span> — {conflictWith}과(와) 동시 수혜 불가
+              {excludedScholarships.map(({ scholarship, reason }) => (
+                <li key={scholarship.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/60 px-3 py-2">
+                  <span>
+                    <span className="font-medium text-navy-700">{scholarship.name}</span> — {reason}
+                  </span>
+                  <Link href={`/scholarships/${scholarship.id}`} className="shrink-0 text-xs font-medium text-pine-700 hover:underline">
+                    자세히
+                  </Link>
                 </li>
               ))}
             </ul>
