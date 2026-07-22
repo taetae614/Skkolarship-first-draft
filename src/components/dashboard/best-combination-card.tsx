@@ -16,7 +16,7 @@ export default function BestCombinationCard({
   userName: string | null;
 }) {
   const [showExcluded, setShowExcluded] = useState(false);
-  const { totalAmount, combination: items, excludedScholarships } = combination;
+  const { totalAmount, combination: items, excludedScholarships, amountUnknownScholarships } = combination;
 
   if (items.length === 0) {
     return null;
@@ -28,7 +28,9 @@ export default function BestCombinationCard({
       <h2 className="mt-1 text-2xl font-extrabold text-navy-900">최대 수령 가능 조합</h2>
       <p className="mt-2 text-sm text-navy-500">
         서로 중복 수혜가 가능한 지원가능(확정) 장학금들을 조합했을 때 예상되는 최대 수령액이에요. 등록금성 장학금은 등록금
-        한도 내에서, 생활비성 장학금은 조건이 맞으면 모두 함께 계산돼요.
+        한도{combination.tuitionCeilingIsEstimated ? `(약 ${formatKrw(combination.tuitionCeiling)}, 계열별 추정치)` : ""} 내에서,
+        생활비성 장학금은 조건이 맞으면 모두 함께 계산돼요. 초과분을 생활비로 전환 지급하는 장학금은 한도와 무관하게 전액
+        더해져요.
       </p>
 
       <div className="mt-5 overflow-hidden rounded-2xl border border-pine-100 bg-white">
@@ -41,7 +43,9 @@ export default function BestCombinationCard({
               >
                 <span className="text-sm font-medium text-navy-800">{item.name}</span>
                 <span className="shrink-0 font-mono text-sm font-semibold text-pine-700">
-                  {item.amount_max_krw ? `+${formatKrw(item.amount_max_krw)}` : "금액 미확정"}
+                  {item.amount_max_krw
+                    ? `+${formatKrw(item.amount_max_krw)}${item.amountIsEstimated ? " (약)" : ""}`
+                    : "금액 미확정"}
                 </span>
               </Link>
             </li>
@@ -58,14 +62,16 @@ export default function BestCombinationCard({
         <span className="text-cyan-300">{formatKrw(totalAmount)}</span>입니다!
       </p>
 
-      {excludedScholarships.length > 0 ? (
+      {excludedScholarships.length + amountUnknownScholarships.length > 0 ? (
         <div className="mt-4">
           <button
             type="button"
             onClick={() => setShowExcluded((value) => !value)}
             className="text-sm font-medium text-navy-500 underline underline-offset-4 transition hover:text-navy-800"
           >
-            {showExcluded ? "제외된 장학금 숨기기" : `제외된 장학금 ${excludedScholarships.length}개 보기`}
+            {showExcluded
+              ? "제외된 장학금 숨기기"
+              : `제외된 장학금 ${excludedScholarships.length + amountUnknownScholarships.length}개 보기`}
           </button>
           {showExcluded ? (
             <ul className="mt-3 space-y-1.5 text-sm text-navy-500">
@@ -73,6 +79,17 @@ export default function BestCombinationCard({
                 <li key={scholarship.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/60 px-3 py-2">
                   <span>
                     <span className="font-medium text-navy-700">{scholarship.name}</span> — {reason}
+                  </span>
+                  <Link href={`/scholarships/${scholarship.id}`} className="shrink-0 text-xs font-medium text-pine-700 hover:underline">
+                    자세히
+                  </Link>
+                </li>
+              ))}
+              {amountUnknownScholarships.map((scholarship) => (
+                <li key={scholarship.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/60 px-3 py-2">
+                  <span>
+                    <span className="font-medium text-navy-700">{scholarship.name}</span> — 지원 가능하지만 정확한 금액이
+                    공고문에 명시되어 있지 않아 합계에서 제외했어요
                   </span>
                   <Link href={`/scholarships/${scholarship.id}`} className="shrink-0 text-xs font-medium text-pine-700 hover:underline">
                     자세히
