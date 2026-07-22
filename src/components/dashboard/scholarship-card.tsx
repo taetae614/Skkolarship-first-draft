@@ -66,6 +66,35 @@ export default function ScholarshipCard({
         </div>
       </div>
 
+      {scholarship.matchCriteria && scholarship.matchCriteria.length > 0 ? (
+        <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+          <p className="text-sm font-medium text-slate-800">판단 근거</p>
+          <ul className="mt-3 space-y-2">
+            {scholarship.matchCriteria.map((criterion) => (
+              <li
+                key={criterion.key}
+                className={`rounded-xl px-3 py-2 text-sm ${criterion.met ? "bg-emerald-50" : "bg-rose-50"}`}
+              >
+                <div className="flex items-start gap-2">
+                  <span className={criterion.met ? "text-emerald-600" : "text-rose-600"}>
+                    {criterion.met ? "✓" : "✕"}
+                  </span>
+                  <div>
+                    <p className={`font-medium ${criterion.met ? "text-emerald-900" : "text-rose-900"}`}>
+                      {criterion.label}
+                    </p>
+                    <p className={criterion.met ? "text-emerald-700" : "text-rose-700"}>{criterion.detail}</p>
+                    {criterion.actionHint ? (
+                      <p className="mt-1 font-medium text-amber-700">💡 {criterion.actionHint}</p>
+                    ) : null}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
         <p className="font-medium text-slate-800">주의 사항</p>
         <ul className="mt-2 space-y-1">

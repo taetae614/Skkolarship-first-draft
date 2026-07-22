@@ -1,4 +1,5 @@
 import dataset from "@/data/scholarships.json";
+import type { MatchCriterion } from "@/engine/matchScholarship";
 
 export type ScholarshipStatus = "ELIGIBLE" | "CONDITIONAL" | "INELIGIBLE";
 export type ScholarshipType = "TUITION" | "LIVING";
@@ -35,6 +36,9 @@ export type Scholarship = {
     excludedWith?: string[];
     amountCapNote?: string | null;
   } | null;
+  /** Only populated for personalized results (see getPersonalizedScholarships). */
+  matchCriteria?: MatchCriterion[];
+  matchReasonText?: string;
 };
 
 type RawScholarship = (typeof dataset.scholarships)[number];

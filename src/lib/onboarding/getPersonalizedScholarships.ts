@@ -16,6 +16,8 @@ export function getPersonalizedScholarships(profile: StudentProfileFull): Schola
       ...scholarship,
       status: STATUS_MAP[result.status] ?? scholarship.status,
       fitScore: result.score,
+      matchCriteria: result.criteria,
+      matchReasonText: result.reason_text,
     };
   });
 }
