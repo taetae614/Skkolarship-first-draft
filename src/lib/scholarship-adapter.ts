@@ -54,7 +54,7 @@ export function convertScholarship(source: (typeof scholarshipSeed)[number]): Ne
       credits_recent_min_last_semester: null,
       income_bracket_max: source.eligibilityRules.maxIncomeBracket ?? null,
       special_status: source.eligibilityRules.specialStatusRequired ?? [],
-      major_requirement: null,
+      major_requirement: source.eligibilityRules.majorRequirement ?? null,
       region_requirement: source.eligibilityRules.regionRequirement ?? null,
       other_conditions: source.eligibilityRules.notes ?? null,
     },

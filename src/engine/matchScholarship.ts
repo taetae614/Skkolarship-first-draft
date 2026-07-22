@@ -313,23 +313,91 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
     }
   }
 
-  // 특수신분
+  // 특수신분 — the onboarding UI splits this across two separate screens: a
+  // free-text-ish requirement in the seed data ("장애인복지법 제32조 중증장애인
+  // 등록자", "국가유공자 본인 또는 자녀" 등) needs to be compared against short chip
+  // labels ("중증장애인", "국가유공자") plus the low-income select (기초생활수급/
+  // 차상위/한부모), which never made it into profile.special_status at all. Exact
+  // string equality between those two shapes could basically never match. Both
+  // sides are now normalized into the same canonical category tokens below.
   if (eligibility.special_status.length > 0) {
-    const matched = eligibility.special_status.filter((item) => profile.special_status.includes(item));
-    const met = matched.length > 0;
-    if (!met) {
+    const profileTokens = resolveProfileSpecialStatusTokens(profile);
+    const perEntry = eligibility.special_status.map((entry) => ({
+      entry,
+      required: detectSpecialStatusCategories(entry),
+    }));
+    const matchedEntries = perEntry.filter((item) => item.required.some((token) => profileTokens.has(token)));
+    const unparseableEntries = perEntry.filter((item) => item.required.length === 0);
+    const met = matchedEntries.length > 0;
+
+    if (!met && unparseableEntries.length > 0) {
+      // Every listed condition failed to resolve to a known category (e.g. "기준중위소득
+      // 60% 이하", which no onboarding question captures) — can't confidently rule the
+      // student out, so ask them to double-check instead of a false rejection.
       status = status === "지원불가" ? status : "조건부가능";
-      reasons.push(`특수신분 조건(${eligibility.special_status.join(", ")}) 확인이 필요합니다.`);
+      reasons.push(`특수신분 조건(${eligibility.special_status.join(", ")})을 자동으로 판별하기 어려워 조건부 가능으로 분류했습니다.`);
+      criteria.push({
+        key: "special_status",
+        label: "특수신분 조건",
+        met: false,
+        detail: `요구 조건: ${eligibility.special_status.join(", ")} — 자동 판별이 어려워요.`,
+        actionHint: "공식 공고에서 특수신분 조건을 직접 확인해주세요.",
+      });
+    } else if (!met) {
+      // At least one condition was confidently parsed and the student's answered
+      // status doesn't cover it — this is a definitive mismatch, not a guess, so
+      // it should drop out of ELIGIBLE/CONDITIONAL rather than staying "조건부가능"
+      // forever regardless of what the student actually selected.
+      status = "지원불가";
+      unmetConditions.push(`특수신분 조건(${eligibility.special_status.join(", ")}) 미충족`);
+      reasons.push(`특수신분 조건(${eligibility.special_status.join(", ")})에 해당하지 않습니다.`);
+      criteria.push({
+        key: "special_status",
+        label: "특수신분 조건",
+        met: false,
+        detail: `요구 조건: ${eligibility.special_status.join(", ")} — 해당 없음`,
+        actionHint: "해당 특수신분에 변동이 생기면 다시 확인해보세요.",
+      });
+    } else {
+      criteria.push({
+        key: "special_status",
+        label: "특수신분 조건",
+        met: true,
+        detail: `요구 조건(${eligibility.special_status.join(", ")}) 중 보유: ${matchedEntries.map((item) => item.entry).join(", ")}`,
+      });
     }
-    criteria.push({
-      key: "special_status",
-      label: "특수신분 조건",
-      met,
-      detail: met
-        ? `요구 조건(${eligibility.special_status.join(", ")}) 중 보유: ${matched.join(", ")}`
-        : `요구 조건: ${eligibility.special_status.join(", ")} — 해당 없음`,
-      actionHint: met ? undefined : "해당 특수신분 관련 서류·활동 이력을 준비해보세요.",
-    });
+  }
+
+  // 전공 요건 — only one scholarship in the seed data has this (화학·바이오·화장품
+  // 관련 학과), but nothing was ever checking it, so it silently passed for every major.
+  if (eligibility.major_requirement) {
+    const keywords = parseMajorKeywords(eligibility.major_requirement);
+    const studentMajor = profile.major ?? "";
+    if (!studentMajor) {
+      status = status === "지원불가" ? status : "조건부가능";
+      reasons.push("전공 정보가 없어 조건부 가능으로 분류했습니다.");
+      criteria.push({
+        key: "major",
+        label: "전공 조건",
+        met: false,
+        detail: `요구 전공: ${eligibility.major_requirement} / 내 전공 정보 없음`,
+        actionHint: "성적증명서에서 학과 정보를 확인해주세요.",
+      });
+    } else {
+      const met = keywords.length === 0 || keywords.some((keyword) => studentMajor.includes(keyword));
+      if (!met) {
+        status = "지원불가";
+        unmetConditions.push(`전공 조건(${eligibility.major_requirement}) 미충족`);
+        reasons.push(`전공 조건(${eligibility.major_requirement})에 해당하지 않습니다.`);
+      }
+      criteria.push({
+        key: "major",
+        label: "전공 조건",
+        met,
+        detail: `요구 전공: ${eligibility.major_requirement} / 내 전공: ${studentMajor}`,
+        actionHint: met ? undefined : "전공이 바뀌면 다시 확인해보세요.",
+      });
+    }
   }
 
   if (scholarship.eligibility.other_conditions) {
@@ -373,11 +441,82 @@ function computeMarginScore(profile: StudentProfile, scholarship: Scholarship) {
 }
 
 function computeMatchBonus(profile: StudentProfile, scholarship: Scholarship) {
-  const matches = scholarship.eligibility.special_status.filter((item) => profile.special_status.includes(item)).length;
+  const profileTokens = resolveProfileSpecialStatusTokens(profile);
+  const matches = scholarship.eligibility.special_status.filter((entry) =>
+    detectSpecialStatusCategories(entry).some((token) => profileTokens.has(token)),
+  ).length;
   const activityMatches = (profile.activities ?? []).filter((activity) =>
     scholarship.notes ? scholarship.notes.includes(activity) : false,
   ).length;
   return Math.min(20, matches * 5 + activityMatches * 3);
+}
+
+// Maps the onboarding "저소득 유형" select (기초생활수급/차상위/한부모/해당없음) onto
+// the same canonical category names used elsewhere so the two data sources agree.
+const LOW_INCOME_TYPE_TO_CATEGORY: Record<string, string> = {
+  기초생활수급: "기초생활수급자",
+  차상위: "차상위계층",
+  한부모: "한부모",
+};
+
+// profile.special_status only ever holds the special-status chip picks (중증장애인,
+// 국가유공자 등); the low-income select lives in a sibling field and was never folded
+// in. Merge them here so every caller (live onboarding preview and already-saved
+// profiles read back from the DB) benefits without needing a data migration.
+function resolveProfileSpecialStatusTokens(profile: StudentProfile): Set<string> {
+  const tokens = new Set<string>();
+  for (const item of profile.special_status ?? []) {
+    if (item && item !== "해당없음") tokens.add(item);
+  }
+  const lowIncomeType = (profile as unknown as { low_income_type?: string | null }).low_income_type;
+  if (lowIncomeType && LOW_INCOME_TYPE_TO_CATEGORY[lowIncomeType]) {
+    tokens.add(LOW_INCOME_TYPE_TO_CATEGORY[lowIncomeType]);
+  }
+  return tokens;
+}
+
+// Extracts known special-status categories out of a scholarship's free-text
+// requirement ("장애인복지법 제32조 중증장애인 등록자", "국가유공자 본인 또는 자녀" 등)
+// so it can be compared against the short chip-label tokens above instead of
+// requiring byte-for-byte string equality. Returns an empty array when nothing
+// recognizable is found (e.g. "기준중위소득 60% 이하") — callers should treat that
+// as "can't tell" rather than "doesn't match".
+function detectSpecialStatusCategories(text: string): string[] {
+  const found: string[] = [];
+  const hasBasicLivelihood = /기초생활수급/.test(text);
+  const hasNearPoverty = /차상위/.test(text);
+  const nearPovertyExcluded = /차상위[가-힣]*\s*(?:은|는)\s*미해당|차상위[가-힣]*\s*제외/.test(text);
+
+  if (hasBasicLivelihood) found.push("기초생활수급자");
+  if (hasNearPoverty && !nearPovertyExcluded) found.push("차상위계층");
+  if (/한부모/.test(text)) found.push("한부모");
+  if (/중증\s*장애/.test(text)) found.push("중증장애인");
+  else if (/장애인/.test(text)) found.push("장애인");
+  if (/국가유공자/.test(text)) found.push("국가유공자");
+  if (/독립유공자/.test(text) && /후손|자손|증손|현손/.test(text)) found.push("독립유공자후손");
+  if (/보훈대상자/.test(text)) found.push("보훈대상자");
+  if (/탈북민|북한이탈/.test(text)) found.push("탈북민");
+  if (/다문화/.test(text)) found.push("다문화");
+  if (/이주배경|재한외국인/.test(text)) found.push("이주배경");
+  if (/자립준비청년/.test(text)) found.push("자립준비청년");
+  if (/가족돌봄/.test(text)) found.push("가족돌봄");
+  if (/다자녀/.test(text)) found.push("다자녀");
+  if (/LH\s*임대주택/.test(text)) found.push("LH임대주택거주");
+  if (/건강보험료/.test(text)) found.push("건강보험료");
+  if (/재산세/.test(text)) found.push("재산세");
+
+  return Array.from(new Set(found));
+}
+
+// Splits a major requirement like "화학·바이오·화장품 관련 학과" into loose keywords
+// ("화학", "바이오", "화장품") checked as substrings against the student's department
+// text, since department names rarely match the requirement phrasing verbatim.
+function parseMajorKeywords(text: string): string[] {
+  return text
+    .replace(/관련\s*학과|전공|계열/g, " ")
+    .split(/[·,\/\s]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
 }
 
 // Parses "OO시/구/군 [관내] [연속] N년 이상 [계속] 거주" style free text into a
