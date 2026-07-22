@@ -21,6 +21,7 @@ export type DuplicateAllowance = "가능" | "불가" | "조건부" | "미확인"
 
 export interface ScholarshipEligibility {
   grade_level: string | null;
+  college_requirement: string | null;
   gpa_recent_min: number | null;
   gpa_cumulative_min: number | null;
   gpa_scale: 4.5 | 4.3 | 100;

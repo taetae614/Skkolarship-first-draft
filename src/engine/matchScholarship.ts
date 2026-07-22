@@ -93,30 +93,33 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
     });
   }
 
-  // 초과학기 수혜 불가 — grade_level/other_conditions often carries this as a note rather than
-  // a structured field, so check the free text and cross-reference the student's enrollment status.
-  if (/초과학기.{0,4}(불가|제외)/.test(`${eligibility.grade_level ?? ""} ${eligibility.other_conditions ?? ""}`)) {
+  // 재학 상태 제외(휴학/교환학생파견/초과학기/마지막학기) — often phrased as a list
+  // ("휴학·교환·초과학기·졸업유예 제외") sharing one trailing marker rather than a
+  // structured field, so this scans for status keywords near any "제외"/"불가"
+  // marker instead of requiring the keyword to sit immediately before it.
+  const excludedStatuses = detectEnrollmentExclusions(`${eligibility.grade_level ?? ""} ${eligibility.other_conditions ?? ""}`);
+  if (excludedStatuses.size > 0) {
     const enrollmentStatus =
       (profile as unknown as { next_semester_status?: string | null }).next_semester_status ??
       profile.enrollmentStatus ??
       null;
-    if (enrollmentStatus === "초과학기") {
+    if (enrollmentStatus && excludedStatuses.has(enrollmentStatus)) {
       status = "지원불가";
-      unmetConditions.push("초과학기 수혜 불가");
-      reasons.push("초과학기 재학 예정이라 이 장학금은 지원이 어렵습니다.");
+      unmetConditions.push(`재학 상태(${enrollmentStatus}) 제외 대상`);
+      reasons.push(`${enrollmentStatus} 상태는 이 장학금 지원 대상에서 제외돼요.`);
       criteria.push({
         key: "enrollment_status",
         label: "재학 상태",
         met: false,
-        detail: "이 장학금은 초과학기 재학생은 수혜가 불가능해요.",
-        actionHint: "정규학기 재학 상태가 되면 다시 확인해보세요.",
+        detail: `제외 대상: ${Array.from(excludedStatuses).join(", ")} / 내 다음학기 상태: ${enrollmentStatus}`,
+        actionHint: "재학 상태가 바뀌면 다시 확인해보세요.",
       });
     } else if (enrollmentStatus) {
       criteria.push({
         key: "enrollment_status",
         label: "재학 상태",
         met: true,
-        detail: `초과학기 재학생은 제외되는 조건인데, 다음학기 상태(${enrollmentStatus})는 해당하지 않아요.`,
+        detail: `제외 대상: ${Array.from(excludedStatuses).join(", ")} / 내 다음학기 상태(${enrollmentStatus})는 해당하지 않아요.`,
       });
     }
   }
@@ -187,7 +190,21 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
   // recent-semester percentile (only percentile_cumulative), so this safely falls
   // through to "정보 없음 → 조건부가능" for those two until that data exists, rather
   // than comparing a 4.5-scale number against a 100-point threshold.
-  if (eligibility.gpa_recent_min != null) {
+  //
+  // Two scholarships explicitly waive this GPA bar for specific groups — checked here
+  // (before the block runs) rather than patched afterward, so a waived student never
+  // sees a contradictory "미달" reason alongside an overridden 지원가능 status:
+  // - 국가유공자(자녀)장학금: "국가유공자 본인·신입생 제외"
+  // - 국가근로장학금: "장애인·자립준비청년은 성적기준 예외"
+  const isRecentGpaExempt =
+    (scholarship.id === "skku-gukga-yugongja" && profile.grade_level === "1") ||
+    (scholarship.id === "ext-gukga-geunro" &&
+      (() => {
+        const tokens = resolveProfileSpecialStatusTokens(profile);
+        return tokens.has("장애인") || tokens.has("중증장애인") || tokens.has("자립준비청년");
+      })());
+
+  if (eligibility.gpa_recent_min != null && !isRecentGpaExempt) {
     const useRecent100Scale = eligibility.gpa_scale === 100;
     const percentileRecent = (profile as unknown as { percentile_recent?: number | null }).percentile_recent ?? null;
     const recentScore = useRecent100Scale ? percentileRecent : profile.gpa_recent;
@@ -227,6 +244,13 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
         detail: `기준 ${recentScaleLabel} ${eligibility.gpa_recent_min}점 이상 / 내 ${recentScaleLabel} ${recentScore}점`,
       });
     }
+  } else if (eligibility.gpa_recent_min != null && isRecentGpaExempt) {
+    criteria.push({
+      key: "gpa_recent",
+      label: "직전학기 평점",
+      met: true,
+      detail: `기준 ${eligibility.gpa_recent_min}점 이상이지만 해당 조건에서 면제돼요.`,
+    });
   }
 
   // 누적 평점 — a few scholarships (서울인재대학, 서울인재해외교환학생, 현대차 CMK,
@@ -473,6 +497,39 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
     }
   }
 
+  // 단과대학 요건 — grade_level text often names the college directly ("사회과학대학
+  // 재학생") but nothing was checking it against the student's actual college, only
+  // silently dropping it during grade-digit parsing. transcript.college is already
+  // extracted during upload.
+  if (eligibility.college_requirement) {
+    const studentCollege = (profile as unknown as { college?: string | null }).college ?? "";
+    if (!studentCollege) {
+      status = status === "지원불가" ? status : "조건부가능";
+      reasons.push("소속 단과대학 정보가 없어 조건부 가능으로 분류했습니다.");
+      criteria.push({
+        key: "college",
+        label: "소속 단과대학",
+        met: false,
+        detail: `요구 단과대학: ${eligibility.college_requirement} / 내 단과대학 정보 없음`,
+        actionHint: "성적증명서에서 단과대학 정보를 확인해주세요.",
+      });
+    } else {
+      const met = studentCollege.includes(eligibility.college_requirement);
+      if (!met) {
+        status = "지원불가";
+        unmetConditions.push(`단과대학 조건(${eligibility.college_requirement}) 미충족`);
+        reasons.push(`단과대학 조건(${eligibility.college_requirement})에 해당하지 않습니다.`);
+      }
+      criteria.push({
+        key: "college",
+        label: "소속 단과대학",
+        met,
+        detail: `요구 단과대학: ${eligibility.college_requirement} / 내 단과대학: ${studentCollege}`,
+        actionHint: met ? undefined : "소속 단과대학이 바뀌면 다시 확인해보세요.",
+      });
+    }
+  }
+
   // 국가장학금 신청 필수 — a few scholarships require the student to have gone
   // through the 국가장학금(한국장학재단) application first (e.g. to get an official
   // 소득구간 determination). other_conditions text merely *mentioning* "국가장학금"
@@ -543,6 +600,112 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
         }
         criteria.push({ key, label: gate.label, met, detail: gate.requirementText });
       }
+    }
+  }
+
+  // 외국인전형 입학자 제외 / 대한민국 국적자 필요
+  if (detectForeignExclusion(`${eligibility.grade_level ?? ""} ${eligibility.other_conditions ?? ""}`)) {
+    const nationality = (profile as unknown as { nationality?: string | null }).nationality ?? null;
+    if (!nationality) {
+      status = status === "지원불가" ? status : "조건부가능";
+      reasons.push("국적 정보가 없어 조건부 가능으로 분류했습니다.");
+      criteria.push({
+        key: "nationality",
+        label: "국적",
+        met: false,
+        detail: "이 장학금은 외국인전형 입학자는 지원할 수 없어요. 국적 정보가 없어요.",
+        actionHint: "온보딩에서 국적 정보를 입력해주세요.",
+      });
+    } else if (nationality === "외국인") {
+      status = "지원불가";
+      unmetConditions.push("외국인전형/외국인 제외 대상");
+      reasons.push("이 장학금은 외국인전형 입학자는 지원할 수 없어요.");
+      criteria.push({
+        key: "nationality",
+        label: "국적",
+        met: false,
+        detail: "이 장학금은 외국인전형 입학자는 지원할 수 없어요.",
+      });
+    } else {
+      criteria.push({
+        key: "nationality",
+        label: "국적",
+        met: true,
+        detail: `외국인전형 입학자는 제외되는 조건인데, 내 국적(${nationality})은 해당하지 않아요.`,
+      });
+    }
+  }
+
+  // 윤세영 스칼라십 — "부모 직장 학자금 지원 미수혜자"만 명시적으로 제외. ext-wooin과
+  // 달리 교외재단/기업 수혜는 이 장학금과 무관하므로 별도로 좁혀서 확인.
+  if (scholarship.id === "ext-yoon-seyoung") {
+    const met = !currentScholarshipCategories.includes("부모직장학자금지원");
+    if (!met) {
+      status = "지원불가";
+      unmetConditions.push("부모 직장 학자금 지원 수혜 중");
+      reasons.push("부모 직장 학자금 지원을 받고 있으면 이 장학금은 지원할 수 없어요.");
+    }
+    criteria.push({
+      key: "parent_employer_funding",
+      label: "부모 직장 학자금 지원 여부",
+      met,
+      detail: met ? "부모 직장 학자금 지원을 받고 있지 않아요." : "부모 직장 학자금 지원을 받고 있어요.",
+    });
+  }
+
+  // 삼송장학회 — "신입생, 타장학금 수혜자, 대학원생 제외". 신입생 제외는 다른 대부분의
+  // 장학금(신입생 필수)과 반대 방향이라 별도 처리가 필요.
+  if (scholarship.id === "ext-samsong") {
+    if (profile.grade_level === "1") {
+      status = "지원불가";
+      unmetConditions.push("신입생 제외 대상");
+      reasons.push("이 장학금은 신입생은 지원할 수 없어요.");
+      criteria.push({ key: "freshman_exclusion", label: "신입생 여부", met: false, detail: "이 장학금은 신입생은 지원할 수 없어요." });
+    }
+    if (externalFundingCategories.length > 0) {
+      status = "지원불가";
+      unmetConditions.push("타 장학금 수혜 중 (제외 대상)");
+      reasons.push("타 장학금을 받고 있으면 이 장학금은 지원할 수 없어요.");
+      criteria.push({
+        key: "other_scholarship_exclusion",
+        label: "타 장학금 수혜 여부",
+        met: false,
+        detail: `현재 수혜 중: ${externalFundingCategories.join(", ")} — 타 장학금 수혜자는 제외 대상이에요.`,
+      });
+    }
+  }
+
+  // 벽담재단법인 — "수여식 참석 필수(불참 시 선발 취소)"는 이미 온보딩에서 묻는
+  // can_attend_mandatory_events로 바로 확인 가능.
+  if (scholarship.id === "ext-byeokdam") {
+    const canAttend = (profile as unknown as { can_attend_mandatory_events?: string | null }).can_attend_mandatory_events ?? null;
+    if (!canAttend) {
+      status = status === "지원불가" ? status : "조건부가능";
+      reasons.push("필수 행사 참석 가능 여부가 확인되지 않아 조건부 가능으로 분류했습니다.");
+      criteria.push({
+        key: "mandatory_event",
+        label: "필수 행사 참석 가능 여부",
+        met: false,
+        detail: "이 장학금은 2026년 6월 수여식 참석이 필수예요. 참석 가능 여부 정보가 없어요.",
+        actionHint: "온보딩에서 필수 행사 참석 가능 여부를 입력해주세요.",
+      });
+    } else if (canAttend === "아니오") {
+      status = "지원불가";
+      unmetConditions.push("필수 행사 참석 불가");
+      reasons.push("이 장학금은 2026년 6월 수여식 참석이 필수인데, 참석이 어려운 것으로 확인됩니다.");
+      criteria.push({
+        key: "mandatory_event",
+        label: "필수 행사 참석 가능 여부",
+        met: false,
+        detail: "이 장학금은 2026년 6월 수여식 참석이 필수예요. 불참 시 선발이 취소돼요.",
+      });
+    } else {
+      criteria.push({
+        key: "mandatory_event",
+        label: "필수 행사 참석 가능 여부",
+        met: true,
+        detail: `필수 수여식 참석 가능 여부: ${canAttend}`,
+      });
     }
   }
 
@@ -813,6 +976,34 @@ function detectSpecialStatusCategories(text: string): string[] {
 // Splits a major requirement like "화학·바이오·화장품 관련 학과" into loose keywords
 // ("화학", "바이오", "화장품") checked as substrings against the student's department
 // text, since department names rarely match the requirement phrasing verbatim.
+// Finds every "제외"/"불가" occurrence and looks backward in a short window for
+// enrollment-status keywords, so list-style phrasing ("휴학·교환·초과학기·졸업유예
+// 제외") catches every item in the list, not just the one immediately before the
+// marker. Returns next_semester_status literal values so callers can compare directly.
+function detectEnrollmentExclusions(text: string): Set<string> {
+  const excluded = new Set<string>();
+  for (const match of text.matchAll(/제외|불가/g)) {
+    const window = text.slice(Math.max(0, match.index - 30), match.index);
+    if (/휴학/.test(window)) excluded.add("휴학");
+    if (/교환/.test(window)) excluded.add("교환학생파견");
+    if (/초과학기/.test(window)) excluded.add("초과학기");
+    if (/마지막학기|최종학기|졸업유예/.test(window)) excluded.add("졸업예정");
+  }
+  return excluded;
+}
+
+// "대한민국 국적자" (positive requirement) or "외국인 ... 제외/불가" (explicit
+// exclusion) — both boil down to the same gate: 외국인 nationality doesn't qualify,
+// 내국인/재외국민 do.
+function detectForeignExclusion(text: string): boolean {
+  if (/대한민국\s*국적자/.test(text)) return true;
+  for (const match of text.matchAll(/제외|불가/g)) {
+    const window = text.slice(Math.max(0, match.index - 20), match.index);
+    if (/외국인/.test(window)) return true;
+  }
+  return false;
+}
+
 function parseMajorKeywords(text: string): string[] {
   return text
     .replace(/관련\s*학과|전공|계열/g, " ")

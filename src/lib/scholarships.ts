@@ -40,6 +40,7 @@ export type Scholarship = {
     minCreditsRecentLastSemester?: number | null;
     maxIncomeBracket?: number | null;
     gradeLevels?: string[] | null;
+    collegeRequirement?: string | null;
     regionRequirement?: string | null;
     majorRequirement?: string | null;
     requiresNationalScholarshipApplication?: boolean;
@@ -127,6 +128,7 @@ function convert(raw: RawScholarship): Scholarship {
       minCreditsRecentLastSemester: raw.eligibility.credits_recent_min_last_semester,
       maxIncomeBracket: raw.eligibility.income_bracket_max,
       gradeLevels: raw.eligibility.grade_level ? [raw.eligibility.grade_level] : null,
+      collegeRequirement: raw.eligibility.college_requirement,
       regionRequirement: raw.eligibility.region_requirement,
       majorRequirement: raw.eligibility.major_requirement,
       requiresNationalScholarshipApplication: raw.eligibility.other_conditions?.includes("국가장학금") ?? false,
