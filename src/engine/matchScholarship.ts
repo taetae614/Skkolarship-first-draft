@@ -251,8 +251,23 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
     }
   }
 
-  // 직전학기 이수학점
-  if (eligibility.credits_recent_min != null) {
+  // 직전학기 이수학점 — 7 of the 8 scholarships that carry credits_recent_min_last_semester
+  // share the exact same pair (12학점 / 9학점) despite being otherwise unrelated
+  // scholarships, which reads as a shared SKKU-wide clause ("직전학기 12학점 이상,
+  // 단 최종학기(졸업예정) 재학생은 9학점 이상") rather than per-scholarship numbers —
+  // confirmed against 정용지 창의장학생's actual announcement. 정인장학금 only has the
+  // "last_semester" field with no normal threshold at all, so there it's used as the
+  // single plain requirement instead of a graduating-semester exception.
+  const isGraduatingSemester =
+    (profile as unknown as { next_semester_status?: string | null }).next_semester_status === "졸업예정";
+  const creditsThreshold =
+    eligibility.credits_recent_min != null && eligibility.credits_recent_min_last_semester != null
+      ? isGraduatingSemester
+        ? eligibility.credits_recent_min_last_semester
+        : eligibility.credits_recent_min
+      : (eligibility.credits_recent_min ?? eligibility.credits_recent_min_last_semester);
+
+  if (creditsThreshold != null) {
     if (profile.credits_recent == null) {
       status = status === "지원불가" ? status : "조건부가능";
       reasons.push("직전학기 이수학점 정보가 없어 조건부 가능으로 분류했습니다.");
@@ -260,31 +275,31 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
         key: "credits_recent",
         label: "직전학기 이수학점",
         met: false,
-        detail: `기준 ${eligibility.credits_recent_min}학점 이상 / 내 이수학점 정보 없음`,
+        detail: `기준 ${creditsThreshold}학점 이상 / 내 이수학점 정보 없음`,
         actionHint: "성적증명서 정보를 다시 확인해주세요.",
       });
-    } else if (profile.credits_recent < eligibility.credits_recent_min) {
+    } else if (profile.credits_recent < creditsThreshold) {
       status = "지원불가";
       unmetConditions.push("직전학기 이수학점 미달");
       reasons.push(
-        `직전학기 이수학점 기준 ${eligibility.credits_recent_min}학점이지만 현재 ${profile.credits_recent}학점으로 확인되어 지원이 어렵습니다.`,
+        `직전학기 이수학점 기준 ${creditsThreshold}학점이지만 현재 ${profile.credits_recent}학점으로 확인되어 지원이 어렵습니다.`,
       );
       criteria.push({
         key: "credits_recent",
         label: "직전학기 이수학점",
         met: false,
-        detail: `기준 ${eligibility.credits_recent_min}학점 이상 / 내 이수학점 ${profile.credits_recent}학점`,
+        detail: `기준 ${creditsThreshold}학점 이상 / 내 이수학점 ${profile.credits_recent}학점`,
         actionHint: "이수학점을 더 채워보세요.",
       });
     } else {
-      if (profile.credits_recent - eligibility.credits_recent_min <= 1) {
+      if (profile.credits_recent - creditsThreshold <= 1) {
         reasons.push("이수학점이 기준에 가까워 재확인이 필요합니다.");
       }
       criteria.push({
         key: "credits_recent",
         label: "직전학기 이수학점",
         met: true,
-        detail: `기준 ${eligibility.credits_recent_min}학점 이상 / 내 이수학점 ${profile.credits_recent}학점`,
+        detail: `기준 ${creditsThreshold}학점 이상 / 내 이수학점 ${profile.credits_recent}학점`,
       });
     }
   }
