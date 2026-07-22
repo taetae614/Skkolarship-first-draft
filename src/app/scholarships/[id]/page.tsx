@@ -8,19 +8,13 @@ type Props = {
   params: { id: string };
 };
 
-const CHECKLIST_OFFSETS = {
-  introDraft: 7,
-  recommendation: 10,
-  documents: 3,
-} as const;
-
 export default function ScholarshipDetailPage({ params }: Props) {
   const scholarship = getScholarshipById(params.id);
   if (!scholarship) notFound();
 
   const warnings = buildWarnings(scholarship);
-  const checklist = buildChecklist(scholarship);
-  const calendarDays = buildCalendarDays(scholarship.applyEnd);
+  const eligibilityBullets = buildEligibilityBullets(scholarship);
+  const duplicateConflictBullets = buildDuplicateConflictBullets(scholarship);
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
@@ -40,19 +34,28 @@ export default function ScholarshipDetailPage({ params }: Props) {
           <p className="mt-3 text-slate-600">{scholarship.amount}</p>
 
           <div className="mt-8 grid gap-5 lg:grid-cols-2">
-            <InfoCard title="자격요건 구조화">
-              <pre className="whitespace-pre-wrap text-sm text-slate-600">
-                {JSON.stringify(scholarship.eligibilityRules, null, 2)}
-              </pre>
-            </InfoCard>
-            <InfoCard title="리스크 리포트">
-              <div className="space-y-3">
-                {warnings.map((warning) => (
-                  <div key={warning} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                    {warning}
-                  </div>
+            <InfoCard title="자격 요건" description="이 장학금을 받으려면 충족해야 하는 정량 조건이에요.">
+              <ul className="space-y-2 text-sm text-slate-700">
+                {eligibilityBullets.map((bullet) => (
+                  <li key={bullet} className="flex gap-2">
+                    <span className="text-slate-400">•</span>
+                    <span>{bullet}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
+            </InfoCard>
+            <InfoCard title="리스크 리포트" description="지원 전에 미리 챙겨야 할 유의사항이에요 (서류 준비 기간, 마감일 혼선 등).">
+              {warnings.length > 0 ? (
+                <div className="space-y-3">
+                  {warnings.map((warning) => (
+                    <div key={warning} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      {warning}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">특별히 유의할 사항이 등록되어 있지 않아요.</p>
+              )}
             </InfoCard>
           </div>
 
@@ -64,39 +67,15 @@ export default function ScholarshipDetailPage({ params }: Props) {
                 ))}
               </ul>
             </InfoCard>
-            <InfoCard title="중복 수혜 규칙">
-              <pre className="whitespace-pre-wrap text-sm text-slate-600">
-                {JSON.stringify(scholarship.duplicateConflictRules ?? "확인 필요", null, 2)}
-              </pre>
-            </InfoCard>
-          </div>
-
-          <div className="mt-5 grid gap-5 lg:grid-cols-2">
-            <InfoCard title="역산 일정">
-              <ul className="space-y-3 text-sm text-slate-700">
-                {checklist.map((item) => (
-                  <li key={item.label} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
-                    <span>{item.label}</span>
-                    <span className="text-slate-500">{item.dateLabel}</span>
+            <InfoCard title="중복 수혜 규칙" description="다른 장학금과 동시에 받을 수 있는지에 대한 규칙이에요.">
+              <ul className="space-y-2 text-sm text-slate-700">
+                {duplicateConflictBullets.map((bullet) => (
+                  <li key={bullet} className="flex gap-2">
+                    <span className="text-slate-400">•</span>
+                    <span>{bullet}</span>
                   </li>
                 ))}
               </ul>
-            </InfoCard>
-            <InfoCard title="월간 캘린더">
-              <div className="grid grid-cols-7 gap-2 text-center text-xs text-slate-500">
-                {["S", "M", "T", "W", "T", "F", "S"].map((day) => (
-                  <div key={day} className="font-semibold">{day}</div>
-                ))}
-                {calendarDays.map((day, index) => (
-                  <div
-                    key={`${day.label}-${index}`}
-                    className={`min-h-16 rounded-xl border p-2 text-left ${day.isCurrentMonth ? "border-slate-200 bg-white" : "border-transparent bg-slate-50 text-slate-300"}`}
-                  >
-                    <div className="text-xs">{day.label}</div>
-                    {day.hasDeadline ? <div className="mt-2 rounded-full bg-cyan-100 px-2 py-1 text-[10px] text-cyan-800">마감</div> : null}
-                  </div>
-                ))}
-              </div>
             </InfoCard>
           </div>
 
@@ -145,57 +124,57 @@ function buildWarnings(scholarship: Scholarship) {
   return warnings;
 }
 
-function buildChecklist(scholarship: Scholarship) {
-  const end = scholarship.applyEnd ? new Date(scholarship.applyEnd) : null;
-  if (!end) return [];
+// Turns the structured eligibility fields into plain-Korean bullet sentences
+// instead of a raw JSON dump — same underlying data, just readable.
+function buildEligibilityBullets(scholarship: Scholarship): string[] {
+  const e = scholarship.eligibilityRules;
+  const bullets: string[] = [];
 
-  const items = [
-    {
-      label: "자기소개서 초안 완성",
-      offset: CHECKLIST_OFFSETS.introDraft,
-    },
-    ...(scholarship.requiredDocs.some((doc) => doc.includes("추천서"))
-      ? [{ label: "추천서 요청", offset: CHECKLIST_OFFSETS.recommendation }]
-      : []),
-    {
-      label: "증빙서류 발급",
-      offset: CHECKLIST_OFFSETS.documents,
-    },
-  ];
-
-  return items.map((item) => {
-    const date = new Date(end);
-    date.setDate(date.getDate() - item.offset);
-    return {
-      label: `D-${item.offset} ${item.label}`,
-      dateLabel: date.toISOString().slice(0, 10),
-    };
-  });
+  if (e.gradeLevels && e.gradeLevels.length > 0) {
+    bullets.push(`학년 조건: ${e.gradeLevels.join(", ")}`);
+  }
+  if (e.minGpaRecent != null) {
+    bullets.push(`직전학기 평점 ${e.minGpaRecent}점 이상`);
+  }
+  if (e.minCreditsRecent != null) {
+    bullets.push(`직전학기 이수학점 ${e.minCreditsRecent}학점 이상`);
+  }
+  if (e.maxIncomeBracket != null) {
+    bullets.push(`소득분위 ${e.maxIncomeBracket}구간 이하`);
+  }
+  if (e.specialStatusRequired && e.specialStatusRequired.length > 0) {
+    bullets.push(`특수 신분 조건: ${e.specialStatusRequired.join(", ")} 중 해당자`);
+  }
+  if (e.requiresNationalScholarshipApplication) {
+    bullets.push("한국장학재단 국가장학금 신청이 필수예요.");
+  }
+  if (e.notes) {
+    bullets.push(e.notes);
+  }
+  if (bullets.length === 0) {
+    bullets.push("별도의 정량 자격 조건(학년·평점·학점 등)이 등록되어 있지 않아요. 공식 공고를 확인해주세요.");
+  }
+  return bullets;
 }
 
-function buildCalendarDays(endDate?: string | null) {
-  const today = new Date("2026-07-19T00:00:00Z");
-  const base = new Date(today);
-  base.setDate(1);
-  const month = base.getMonth();
-  const daysInMonth = new Date(base.getFullYear(), month + 1, 0).getDate();
-  const startPadding = base.getDay();
-  const days: Array<{ label: string; isCurrentMonth: boolean; hasDeadline: boolean }> = [];
+// Same idea for the duplicate-conflict rules: which other scholarships this
+// one can't be combined with, in a sentence rather than a JSON blob.
+function buildDuplicateConflictBullets(scholarship: Scholarship): string[] {
+  const d = scholarship.duplicateConflictRules;
+  const bullets: string[] = [];
 
-  for (let i = 0; i < startPadding; i += 1) {
-    days.push({ label: "", isCurrentMonth: false, hasDeadline: false });
+  if (d?.excludedWith && d.excludedWith.length > 0) {
+    bullets.push(`다음과 동시 수혜가 불가능해요: ${d.excludedWith.join(", ")}`);
   }
-
-  const deadline = endDate ? new Date(endDate).toISOString().slice(0, 10) : null;
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    const dateLabel = `${base.getFullYear()}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    days.push({
-      label: String(day),
-      isCurrentMonth: true,
-      hasDeadline: deadline === dateLabel,
-    });
+  // amountCapNote and excludedWith are sourced from the same raw field, so skip
+  // it if it would just repeat the sentence above verbatim.
+  if (d?.amountCapNote && !d.excludedWith?.includes(d.amountCapNote)) {
+    bullets.push(d.amountCapNote);
   }
-  return days;
+  if (bullets.length === 0) {
+    bullets.push("중복 수혜 제한 정보가 별도로 등록되어 있지 않아요. 공식 공고를 통해 확인해주세요.");
+  }
+  return bullets;
 }
 
 function Tag({ children, muted }: { children: ReactNode; muted?: boolean }) {
@@ -210,10 +189,19 @@ function Tag({ children, muted }: { children: ReactNode; muted?: boolean }) {
   );
 }
 
-function InfoCard({ title, children }: { title: string; children: ReactNode }) {
+function InfoCard({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
   return (
     <div className="rounded-2xl bg-slate-50 p-5">
       <h2 className="font-semibold text-slate-900">{title}</h2>
+      {description ? <p className="mt-1 text-xs text-slate-400">{description}</p> : null}
       <div className="mt-3">{children}</div>
     </div>
   );
