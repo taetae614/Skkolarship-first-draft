@@ -38,6 +38,7 @@ export function buildOnboardingProfile(
     can_attend_mandatory_events: answers?.can_attend_mandatory_events,
     region_affinity: extras?.region_affinity,
     wish_career: extras?.wish_career,
+    career_interests: extras?.career_interests,
     research_plan: extras?.research_plan,
     school_name: transcript.university,
     exchange_semester_detected: transcript.exchange_semester_detected,

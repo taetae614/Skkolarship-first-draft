@@ -603,6 +603,24 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
     }
   }
 
+  // 희망 진로 체크박스 게이트 — 체크박스로 직접 선택한 항목이라 확인 질문 없이 바로 판별.
+  const careerGate = CAREER_INTEREST_GATES[scholarship.id];
+  if (careerGate) {
+    const careerInterests = (profile as unknown as { career_interests?: string[] }).career_interests ?? [];
+    const met = careerInterests.includes(careerGate.interest);
+    if (!met) {
+      status = "지원불가";
+      unmetConditions.push(`${careerGate.interest} 진로 희망 아님`);
+      reasons.push(careerGate.requirementText);
+    }
+    criteria.push({
+      key: "career_interest",
+      label: "희망 진로",
+      met,
+      detail: met ? careerGate.requirementText : `${careerGate.requirementText} 온보딩에서 해당 진로를 선택하지 않았어요.`,
+    });
+  }
+
   // 외국인전형 입학자 제외 / 대한민국 국적자 필요
   if (detectForeignExclusion(`${eligibility.grade_level ?? ""} ${eligibility.other_conditions ?? ""}`)) {
     const nationality = (profile as unknown as { nationality?: string | null }).nationality ?? null;
@@ -926,15 +944,6 @@ const CONDITIONAL_GATES: Record<
   "ext-hyundai-cmk": [
     { questionId: "stem-track", requireTrue: true, label: "이공계 전공", requirementText: "이공계 전 분야 재학생만 지원 가능해요." },
   ],
-  "ext-pureundae-doonamu": [
-    { questionId: "it-career", requireTrue: true, label: "IT/블록체인 진로 희망", requirementText: "IT/블록체인 관련 진로 희망자만 지원 가능해요." },
-  ],
-  "ext-lotte-sinkyeokho": [
-    { questionId: "media-career", requireTrue: true, label: "언론/미디어 진로 희망", requirementText: "언론·미디어(PD/기자/아나운서/기획마케팅) 취업 희망자만 지원 가능해요." },
-  ],
-  "ext-rural-youth-startup": [
-    { questionId: "agri-career", requireTrue: true, label: "농업/창업 진로 희망", requirementText: "졸업 후 영농/농림축산식품 분야 의무 종사가 가능한 창업 희망자만 지원 가능해요." },
-  ],
   "ext-bogeon-research": [
     { questionId: "research-plan", requireTrue: true, label: "연구계획", requirementText: "연구 지도교수와 함께하는 연구계획이 필요해요." },
   ],
@@ -950,6 +959,34 @@ const CONDITIONAL_GATES: Record<
   "skku-samsung-convergence-track": [
     { questionId: "freshman", requireTrue: true, label: "신입생 여부", requirementText: "2026학년도 학부 신입생 및 2025년 후기 입학생만 지원 가능해요." },
   ],
+  "skku-gongro-gosi": [
+    {
+      questionId: "exam-path",
+      requireTrue: true,
+      label: "고시/전문자격 합격 이력",
+      requirementText: "행정/기술/입법고등고시·외교관후보자시험 1차 합격 또는 공인회계사·변리사 최종 합격자만 지원 가능해요.",
+    },
+  ],
+  "skku-seonggyun-family": [
+    {
+      questionId: "family-alumni",
+      requireTrue: true,
+      label: "가족 성균관대 동문/재학 여부",
+      requirementText: "형제자매/직계3대/직계2대/부부/부모 중 성균관대학교 동문 또는 재학생이 있어야 해요.",
+    },
+  ],
+};
+
+// 희망 진로 체크박스(중복선택) 기반 게이트 — 온보딩에서 선택한 진로 자체가 명확한
+// 답이라 exam-qualification과 달리 별도 확인 질문 없이 바로 게이트한다. 체크박스를
+// 안 고른 건 특수신분 칩과 같은 관례로 "해당없음"이라는 확정 답으로 취급한다.
+const CAREER_INTEREST_GATES: Record<string, { interest: string; requirementText: string }> = {
+  "ext-pureundae-doonamu": { interest: "IT/블록체인", requirementText: "IT/블록체인 관련 진로 희망자만 지원 가능해요." },
+  "ext-lotte-sinkyeokho": { interest: "언론/미디어", requirementText: "언론·미디어(PD/기자/아나운서/기획마케팅) 취업 희망자만 지원 가능해요." },
+  "ext-rural-youth-startup": {
+    interest: "농업/창업",
+    requirementText: "졸업 후 영농/농림축산식품 분야 의무 종사가 가능한 창업 희망자만 지원 가능해요.",
+  },
 };
 
 const LOW_INCOME_TYPE_TO_CATEGORY: Record<string, string> = {

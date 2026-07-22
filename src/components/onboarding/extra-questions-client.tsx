@@ -28,6 +28,7 @@ export default function ExtraQuestionsClient() {
   const answers = useOnboardingStore((state) => state.commonAnswers);
   const specialStatus = useOnboardingStore((state) => state.specialStatus);
   const regionAffinity = useOnboardingStore((state) => state.regionAffinity);
+  const careerInterests = useOnboardingStore((state) => state.careerInterests);
   const storedConditionalAnswers = useOnboardingStore((state) => state.conditionalAnswers);
   const setConditionalAnswers = useOnboardingStore((state) => state.setConditionalAnswers);
   const setStudentProfile = useOnboardingStore((state) => state.setStudentProfile);
@@ -40,9 +41,10 @@ export default function ExtraQuestionsClient() {
         ? buildOnboardingProfile(transcript, answers ?? undefined, {
             special_status: specialStatus,
             region_affinity: regionAffinity ?? undefined,
+            career_interests: careerInterests,
           })
         : null,
-    [answers, regionAffinity, specialStatus, transcript],
+    [answers, careerInterests, regionAffinity, specialStatus, transcript],
   );
 
   const activeQuestions = useMemo(() => {

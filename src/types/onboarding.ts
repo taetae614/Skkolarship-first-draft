@@ -77,6 +77,7 @@ export interface StudentProfileFull
   region_affinity?: RegionAffinity;
   current_scholarships?: CommonAnswers["current_scholarships"];
   wish_career?: string | null;
+  career_interests?: string[];
   research_plan?: string | null;
   school_name?: string | null;
   next_semester_status?: CommonAnswers["next_semester_status"];
@@ -179,28 +180,33 @@ export const CONDITIONAL_TRIGGERS: ConditionalTrigger[] = [
     related_scholarship_ids: ["ext-hyundai-cmk"],
   },
   {
-    trigger_id: "it-blockchain",
-    condition: (profile) => Boolean(profile.wish_career && /it|정보|소프트웨어|개발/i.test(profile.wish_career)),
-    questions: [{ id: "it-career", label: "희망 진로가 IT인가요?", type: "boolean" }],
-    related_scholarship_ids: ["ext-pureundae-doonamu"],
-  },
-  {
-    trigger_id: "media-journalism",
-    condition: (profile) => Boolean(profile.wish_career && /언론|미디어|신문|방송|저널/i.test(profile.wish_career)),
-    questions: [{ id: "media-career", label: "희망 진로가 언론/미디어인가요?", type: "boolean" }],
-    related_scholarship_ids: ["ext-lotte-sinkyeokho"],
-  },
-  {
-    trigger_id: "agri-startup",
-    condition: (profile) => Boolean(profile.wish_career && /농업|창업/i.test(profile.wish_career)),
-    questions: [{ id: "agri-career", label: "희망 진로가 농업/창업인가요?", type: "boolean" }],
-    related_scholarship_ids: ["ext-rural-youth-startup"],
-  },
-  {
     trigger_id: "exam-qualification",
-    condition: (profile) => Boolean(profile.wish_career && /고시|전문자격|회계사|변리사|행시|입법고시|외교관/i.test(profile.wish_career)),
-    questions: [{ id: "exam-path", label: "고시/전문자격 수험 준비 중인가요?", type: "boolean" }],
+    // IT/블록체인, 언론/미디어, 농업/창업 진로는 온보딩의 희망 진로 체크박스 선택 자체가
+    // 이미 명확한 답이라 별도 확인 질문 없이 career_interests로 바로 게이트한다
+    // (matchScholarship.ts의 CAREER_INTEREST_GATES 참고). 고시/전문자격만 "관심"과
+    // "이미 합격"이 다른 사실이라 체크 이후 한 번 더 확인 질문이 필요하다.
+    condition: (profile) => Boolean(profile.career_interests?.includes("고시/전문자격")),
+    questions: [
+      {
+        id: "exam-path",
+        label: "행정/기술/입법고등고시·외교관후보자시험 1차 합격 또는 공인회계사·변리사 최종 합격 이력이 있나요?",
+        type: "boolean",
+        helperText: "공로(고시)장학금은 준비 중이 아니라 이미 합격한 경우에만 지원할 수 있어요.",
+      },
+    ],
     related_scholarship_ids: ["skku-gongro-gosi"],
+  },
+  {
+    trigger_id: "skku-family-alumni",
+    condition: (profile) => profile.grade_level === "1" || profile.semester_progress?.startsWith("1-") === true,
+    questions: [
+      {
+        id: "family-alumni",
+        label: "가족(형제자매/부모/조부모 등) 중 성균관대학교 졸업생 또는 재학생이 있나요?",
+        type: "boolean",
+      },
+    ],
+    related_scholarship_ids: ["skku-seonggyun-family"],
   },
   {
     trigger_id: "research-plan",
@@ -304,9 +310,8 @@ export const WIRED_TRIGGER_IDS = [
   "exchange-plan",
   "stem-engineering",
   "hyundai-cmk",
-  "it-blockchain",
-  "media-journalism",
-  "agri-startup",
   "research-plan",
   "freshman",
+  "exam-qualification",
+  "skku-family-alumni",
 ];

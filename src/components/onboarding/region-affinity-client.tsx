@@ -17,20 +17,30 @@ export default function RegionAffinityClient() {
   const specialStatus = useOnboardingStore((state) => state.specialStatus);
   const setStudentProfile = useOnboardingStore((state) => state.setStudentProfile);
   const setRegionAffinity = useOnboardingStore((state) => state.setRegionAffinity);
+  const setCareerInterests = useOnboardingStore((state) => state.setCareerInterests);
   const [highSchoolSido, setHighSchoolSido] = useState("");
   const [birthPlace, setBirthPlace] = useState("");
   const [parentOrigin, setParentOrigin] = useState("");
+  const [careerInterests, setCareerInterestsInput] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const profile = useMemo(
-    () => (transcript ? buildOnboardingProfile(transcript, answers ?? undefined, { special_status: specialStatus, region_affinity: { high_school_sido: highSchoolSido, birth_place: birthPlace, parent_origin_or_residence: parentOrigin } }) : null),
-    [answers, birthPlace, highSchoolSido, parentOrigin, specialStatus, transcript],
+    () =>
+      transcript
+        ? buildOnboardingProfile(transcript, answers ?? undefined, {
+            special_status: specialStatus,
+            region_affinity: { high_school_sido: highSchoolSido, birth_place: birthPlace, parent_origin_or_residence: parentOrigin },
+            career_interests: careerInterests,
+          })
+        : null,
+    [answers, birthPlace, highSchoolSido, parentOrigin, specialStatus, transcript, careerInterests],
   );
 
   const matches = useMemo(() => (profile ? matchScholarships(profile, scholarshipSeed) : []), [profile]);
 
   async function finish() {
     setRegionAffinity({ high_school_sido: highSchoolSido, birth_place: birthPlace, parent_origin_or_residence: parentOrigin });
+    setCareerInterests(careerInterests);
     if (!profile) {
       router.push("/dashboard");
       return;
@@ -65,6 +75,28 @@ export default function RegionAffinityClient() {
             <span className="mb-1.5 block text-xs font-medium text-navy-400">부모 원적·거주지</span>
             <input className={fieldStyle} placeholder="예: 강원도 태백시" value={parentOrigin} onChange={(e) => setParentOrigin(e.target.value)} />
           </label>
+        </div>
+
+        <div className="mt-5">
+          <span className="mb-1.5 block text-xs font-medium text-navy-400">희망 진로 (해당하는 것만, 없으면 넘어가세요)</span>
+          <div className="flex flex-wrap gap-2">
+            {["IT/블록체인", "언론/미디어", "농업/창업", "고시/전문자격"].map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  careerInterests.includes(item) ? "bg-pine-500 text-white" : "bg-navy-50 text-navy-600 hover:bg-navy-100"
+                }`}
+                onClick={() =>
+                  setCareerInterestsInput((current) =>
+                    current.includes(item) ? current.filter((value) => value !== item) : [...current, item],
+                  )
+                }
+              >
+                {item}
+              </button>
+            ))}
+          </div>
         </div>
 
         <p className="mt-5 rounded-xl bg-pine-50 px-4 py-3 text-sm font-medium text-pine-700">
