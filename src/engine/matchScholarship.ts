@@ -57,9 +57,13 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
     reasons.push(scholarship.duplicate_conflict.cap_rule);
   }
 
-  // 학년
+  // 학년 — grade_level is free text ("전학년", "2, 3, 4학년(...)", "3학년 이상", "2~4학년" etc.),
+  // not a clean list, so pull out explicit grade digits and only reject when we can confidently
+  // parse a restriction. Ambiguous/unparseable text defaults to "no restriction" rather than a
+  // false rejection (e.g. "전학년" was previously compared as a literal string and always failed).
   if (eligibility.grade_level) {
-    const met = Boolean(profile.grade_level) && matchesGrade(eligibility.grade_level, profile.grade_level as string);
+    const gradeDigits = extractGradeDigits(eligibility.grade_level);
+    const met = gradeDigits.size === 0 || (Boolean(profile.grade_level) && gradeDigits.has(profile.grade_level as string));
     if (!met) {
       status = "지원불가";
       unmetConditions.push(`학년 조건(${eligibility.grade_level}) 미충족`);
@@ -69,9 +73,40 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
       key: "grade_level",
       label: "학년",
       met,
-      detail: `요구 학년: ${eligibility.grade_level} / 내 학년: ${profile.grade_level ?? "미확인"}`,
+      detail:
+        gradeDigits.size === 0
+          ? `학년 제한 없음 (공고 문구: "${eligibility.grade_level}")`
+          : `요구 학년: ${eligibility.grade_level} / 내 학년: ${profile.grade_level ?? "미확인"}`,
       actionHint: met ? undefined : "학년이 바뀌면 다시 확인해보세요.",
     });
+  }
+
+  // 초과학기 수혜 불가 — grade_level/other_conditions often carries this as a note rather than
+  // a structured field, so check the free text and cross-reference the student's enrollment status.
+  if (/초과학기.{0,4}(불가|제외)/.test(`${eligibility.grade_level ?? ""} ${eligibility.other_conditions ?? ""}`)) {
+    const enrollmentStatus =
+      (profile as unknown as { next_semester_status?: string | null }).next_semester_status ??
+      profile.enrollmentStatus ??
+      null;
+    if (enrollmentStatus === "초과학기") {
+      status = "지원불가";
+      unmetConditions.push("초과학기 수혜 불가");
+      reasons.push("초과학기 재학 예정이라 이 장학금은 지원이 어렵습니다.");
+      criteria.push({
+        key: "enrollment_status",
+        label: "재학 상태",
+        met: false,
+        detail: "이 장학금은 초과학기 재학생은 수혜가 불가능해요.",
+        actionHint: "정규학기 재학 상태가 되면 다시 확인해보세요.",
+      });
+    } else if (enrollmentStatus) {
+      criteria.push({
+        key: "enrollment_status",
+        label: "재학 상태",
+        met: true,
+        detail: `초과학기 재학생은 제외되는 조건인데, 다음학기 상태(${enrollmentStatus})는 해당하지 않아요.`,
+      });
+    }
   }
 
   // 직전학기 평점
@@ -285,6 +320,28 @@ function computeMatchBonus(profile: StudentProfile, scholarship: Scholarship) {
   return Math.min(20, matches * 5 + activityMatches * 3);
 }
 
-function matchesGrade(required: string, actual: string) {
-  return required.split(",").map((item) => item.trim()).includes(actual);
+// Pulls explicit grade digits (1-4) out of free-text grade_level descriptions. Handles comma
+// lists sharing a single trailing "학년" ("2, 3, 4학년"), ranges ("2~4학년"), and "이상"
+// ("3학년 이상"). A negative lookbehind on "-\d" avoids misreading semester notation like
+// "4-1학년" (4th year, 1st semester) as "grade 1". Returns an empty set when nothing reliable
+// can be parsed (e.g. "전학년", "학부 재학생") — callers should treat that as "no restriction",
+// not as "reject everyone", since a bare string-equality check would otherwise always fail.
+function extractGradeDigits(text: string): Set<string> {
+  const digits = new Set<string>();
+  const segmentPattern = /(?<![-\d])(?:[1-4]\s*[,·]\s*)+[1-4]\s*학년|(?<![-\d])[1-4]\s*학년/g;
+  for (const segment of text.match(segmentPattern) ?? []) {
+    for (const digit of segment.match(/[1-4]/g) ?? []) digits.add(digit);
+  }
+
+  const aboveMatch = text.match(/(?<![-\d])([1-4])\s*학년\s*이상/);
+  if (aboveMatch) {
+    for (let grade = Number(aboveMatch[1]); grade <= 4; grade += 1) digits.add(String(grade));
+  }
+
+  const rangeMatch = text.match(/(?<![-\d])([1-4])\s*[~-]\s*([1-4])\s*학년/);
+  if (rangeMatch) {
+    for (let grade = Number(rangeMatch[1]); grade <= Number(rangeMatch[2]); grade += 1) digits.add(String(grade));
+  }
+
+  return digits;
 }

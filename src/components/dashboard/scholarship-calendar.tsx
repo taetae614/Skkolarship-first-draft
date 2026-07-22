@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Scholarship } from "@/lib/scholarships";
 
@@ -74,10 +74,50 @@ function placeEventsForWeek(events: CalendarEvent[], weekStart: Date, weekEnd: D
 export default function ScholarshipCalendar({ scholarships }: { scholarships: Scholarship[] }) {
   const today = useMemo(() => startOfDay(new Date()), []);
   const [view, setView] = useState(() => ({ year: today.getFullYear(), month: today.getMonth() }));
+  const [visibleIds, setVisibleIds] = useState<Set<string>>(() => new Set(scholarships.map((s) => s.id)));
+
+  // Keep newly-favorited scholarships visible by default, and drop ids that were un-favorited.
+  useEffect(() => {
+    setVisibleIds((current) => {
+      const next = new Set(current);
+      let changed = false;
+      const validIds = new Set(scholarships.map((s) => s.id));
+      for (const id of next) {
+        if (!validIds.has(id)) {
+          next.delete(id);
+          changed = true;
+        }
+      }
+      for (const scholarship of scholarships) {
+        if (!next.has(scholarship.id)) {
+          next.add(scholarship.id);
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [scholarships]);
+
+  function toggleVisible(id: string) {
+    setVisibleIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  const visibleScholarships = useMemo(
+    () => scholarships.filter((scholarship) => visibleIds.has(scholarship.id)),
+    [scholarships, visibleIds],
+  );
 
   const events: CalendarEvent[] = useMemo(
     () =>
-      scholarships
+      visibleScholarships
         .filter((scholarship) => scholarship.applyStart && scholarship.applyEnd)
         .map((scholarship) => ({
           id: scholarship.id,
@@ -85,7 +125,7 @@ export default function ScholarshipCalendar({ scholarships }: { scholarships: Sc
           start: startOfDay(new Date(scholarship.applyStart as string)),
           end: startOfDay(new Date(scholarship.applyEnd as string)),
         })),
-    [scholarships],
+    [visibleScholarships],
   );
 
   const weeks = useMemo(() => buildMonthWeeks(view.year, view.month), [view]);
@@ -106,48 +146,70 @@ export default function ScholarshipCalendar({ scholarships }: { scholarships: Sc
   }
 
   return (
-    <section className="mt-8 overflow-hidden rounded-[2rem] border border-navy-100 bg-white shadow-[0_20px_60px_-25px_rgba(11,28,49,0.15)]">
-      <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-        <h2 className="text-lg font-bold text-navy-900">
-          {view.year}년 {view.month + 1}월
-        </h2>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => shiftMonth(-1)}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-navy-500 transition hover:scale-110 hover:bg-navy-50"
-            aria-label="이전 달"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            onClick={() => setView({ year: today.getFullYear(), month: today.getMonth() })}
-            className="rounded-full px-3 py-1.5 text-sm font-medium text-navy-600 transition hover:scale-105 hover:bg-navy-50"
-          >
-            오늘
-          </button>
-          <button
-            type="button"
-            onClick={() => shiftMonth(1)}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-navy-500 transition hover:scale-110 hover:bg-navy-50"
-            aria-label="다음 달"
-          >
-            ›
-          </button>
-        </div>
-      </div>
+    <section className="mt-8 flex overflow-hidden rounded-[2rem] border border-navy-100 bg-white shadow-[0_20px_60px_-25px_rgba(11,28,49,0.15)]">
+      <aside className="w-60 shrink-0 border-r border-slate-100 p-4">
+        <p className="px-1 text-xs font-bold uppercase tracking-wide text-slate-400">표시할 장학금</p>
+        <ul className="mt-3 space-y-1">
+          {scholarships.map((scholarship) => (
+            <li key={scholarship.id}>
+              <label className="flex cursor-pointer items-start gap-2 rounded-lg px-1 py-1.5 text-sm transition hover:bg-navy-50">
+                <input
+                  type="checkbox"
+                  checked={visibleIds.has(scholarship.id)}
+                  onChange={() => toggleVisible(scholarship.id)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-pine-500"
+                />
+                <span className={visibleIds.has(scholarship.id) ? "text-navy-800" : "text-slate-400 line-through"}>
+                  {scholarship.name}
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      </aside>
 
-      <div className="grid grid-cols-7 border-b border-slate-100 text-center text-xs font-semibold text-slate-400">
-        {WEEKDAY_LABELS.map((label) => (
-          <div key={label} className="py-2">
-            {label}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <h2 className="text-lg font-bold text-navy-900">
+            {view.year}년 {view.month + 1}월
+          </h2>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => shiftMonth(-1)}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-navy-500 transition hover:scale-110 hover:bg-navy-50"
+              aria-label="이전 달"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() => setView({ year: today.getFullYear(), month: today.getMonth() })}
+              className="rounded-full px-3 py-1.5 text-sm font-medium text-navy-600 transition hover:scale-105 hover:bg-navy-50"
+            >
+              오늘
+            </button>
+            <button
+              type="button"
+              onClick={() => shiftMonth(1)}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-navy-500 transition hover:scale-110 hover:bg-navy-50"
+              aria-label="다음 달"
+            >
+              ›
+            </button>
           </div>
-        ))}
-      </div>
+        </div>
 
-      <div>
-        {weeks.map((week) => {
+        <div className="grid grid-cols-7 border-b border-slate-100 text-center text-xs font-semibold text-slate-400">
+          {WEEKDAY_LABELS.map((label) => (
+            <div key={label} className="py-2">
+              {label}
+            </div>
+          ))}
+        </div>
+
+        <div>
+          {weeks.map((week) => {
           const weekStart = week[0];
           const weekEnd = week[6];
           const placedEvents = placeEventsForWeek(events, weekStart, weekEnd);
@@ -195,12 +257,13 @@ export default function ScholarshipCalendar({ scholarships }: { scholarships: Sc
               </div>
             </div>
           );
-        })}
-      </div>
+          })}
+        </div>
 
-      <p className="border-t border-slate-100 px-6 py-3 text-xs text-slate-400">
-        연녹색 바는 서류 접수 기간이에요. 결과 발표일 정보는 아직 준비 중이라 추가되는 대로 반영할게요.
-      </p>
+        <p className="border-t border-slate-100 px-6 py-3 text-xs text-slate-400">
+          연녹색 바는 서류 접수 기간이에요. 결과 발표일 정보는 아직 준비 중이라 추가되는 대로 반영할게요.
+        </p>
+      </div>
     </section>
   );
 }
