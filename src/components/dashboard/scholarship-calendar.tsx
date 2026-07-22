@@ -115,16 +115,24 @@ export default function ScholarshipCalendar({ scholarships }: { scholarships: Sc
     [scholarships, visibleIds],
   );
 
+  // Several scholarships only have a known deadline (apply_end) with no listed
+  // application-open date, or vice versa — those used to be hidden entirely
+  // just because only one side was known. Show them as a single-day marker on
+  // whichever date is available instead of requiring both.
   const events: CalendarEvent[] = useMemo(
     () =>
       visibleScholarships
-        .filter((scholarship) => scholarship.applyStart && scholarship.applyEnd)
-        .map((scholarship) => ({
-          id: scholarship.id,
-          name: scholarship.name,
-          start: startOfDay(new Date(scholarship.applyStart as string)),
-          end: startOfDay(new Date(scholarship.applyEnd as string)),
-        })),
+        .filter((scholarship) => scholarship.applyStart || scholarship.applyEnd)
+        .map((scholarship) => {
+          const start = scholarship.applyStart ?? scholarship.applyEnd;
+          const end = scholarship.applyEnd ?? scholarship.applyStart;
+          return {
+            id: scholarship.id,
+            name: scholarship.name,
+            start: startOfDay(new Date(start as string)),
+            end: startOfDay(new Date(end as string)),
+          };
+        }),
     [visibleScholarships],
   );
 
