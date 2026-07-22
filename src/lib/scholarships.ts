@@ -59,6 +59,16 @@ function buildTags(raw: RawScholarship) {
   return Array.from(new Set(tags));
 }
 
+// amount_max_krw is almost never populated in the seed data (free-text amounts like
+// "학기당 최대 300만원" or "6구간 최대 60만원 / 7구간 최대 31.25만원"). Fall back to the
+// largest "N만원" figure mentioned in the text so amount-based sorting has something to work with.
+function inferAmountMaxKrw(amountText: string | null): number | null {
+  if (!amountText) return null;
+  const matches = Array.from(amountText.replace(/,/g, "").matchAll(/(\d+(?:\.\d+)?)\s*만원/g), (m) => Number(m[1]));
+  if (matches.length === 0) return null;
+  return Math.round(Math.max(...matches) * 10000);
+}
+
 function fitScore(raw: RawScholarship) {
   let score = 50;
   if (raw.eligibility.gpa_recent_min != null) score += 15;
@@ -77,7 +87,7 @@ function convert(raw: RawScholarship): Scholarship {
     sourceDetail: raw.source_detail,
     type: typeToEnglish(raw.type),
     amount: raw.amount_text ?? "",
-    amountMaxKrw: raw.amount_max_krw,
+    amountMaxKrw: raw.amount_max_krw ?? inferAmountMaxKrw(raw.amount_text),
     status: raw.duplicate_conflict.allows_other_scholarships === "불가" ? "INELIGIBLE" : "ELIGIBLE",
     applyStart: raw.apply_start,
     applyEnd: raw.apply_end,

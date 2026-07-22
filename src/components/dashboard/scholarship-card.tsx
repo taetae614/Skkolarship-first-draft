@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import type { Scholarship } from "@/lib/scholarships";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
@@ -12,6 +13,12 @@ export default function ScholarshipCard({
   const favorites = useFavoritesStore((state) => state.favorites);
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const isFavorite = favorites.includes(scholarship.id);
+  const [justPopped, setJustPopped] = useState(false);
+
+  function handleToggleFavorite() {
+    toggleFavorite(scholarship.id);
+    setJustPopped(true);
+  }
 
   return (
     <article className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
@@ -34,10 +41,11 @@ export default function ScholarshipCard({
 
         <button
           type="button"
-          onClick={() => toggleFavorite(scholarship.id)}
-          className={`rounded-full px-4 py-2 text-sm font-medium ${
+          onClick={handleToggleFavorite}
+          onAnimationEnd={() => setJustPopped(false)}
+          className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-150 hover:scale-110 active:scale-90 ${
             isFavorite ? "bg-rose-500 text-white" : "bg-slate-100 text-slate-700"
-          }`}
+          } ${justPopped ? "animate-heart-pop" : ""}`}
           aria-label="찜 토글"
         >
           {isFavorite ? "♥" : "♡"}
@@ -107,7 +115,7 @@ export default function ScholarshipCard({
       <div className="mt-5 flex flex-wrap gap-3">
         <Link
           href={`/scholarships/${scholarship.id}`}
-          className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-medium text-white"
+          className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-medium text-white transition-all duration-150 hover:scale-105 active:scale-95"
         >
           상세 보기
         </Link>
@@ -116,7 +124,7 @@ export default function ScholarshipCard({
             href={scholarship.officialUrl}
             target="_blank"
             rel="noreferrer"
-            className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700"
+            className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-150 hover:scale-105 active:scale-95"
           >
             공고 링크
           </a>

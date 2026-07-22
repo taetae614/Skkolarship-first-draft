@@ -36,7 +36,7 @@ export default function DashboardClient({ scholarships }: Props) {
 
     return base
       .filter((scholarship) =>
-        activeTags.length ? activeTags.every((tag) => scholarship.tags.includes(tag)) : true,
+        activeTags.length ? activeTags.some((tag) => scholarship.tags.includes(tag)) : true,
       )
       .sort((left, right) => {
         if (sortKey === "fit") return right.fitScore - left.fitScore;
@@ -62,14 +62,14 @@ export default function DashboardClient({ scholarships }: Props) {
             <div className="flex shrink-0 items-center gap-3">
               <Link
                 href="/admin/scholarships"
-                className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white transition-all duration-150 hover:scale-105 hover:bg-white/10 active:scale-95"
               >
                 공고 자동 등록
               </Link>
               <button
                 type="button"
                 onClick={() => signOut({ callbackUrl: "/login" })}
-                className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white transition-all duration-150 hover:scale-105 hover:bg-white/10 active:scale-95"
               >
                 로그아웃
               </button>
@@ -85,13 +85,13 @@ export default function DashboardClient({ scholarships }: Props) {
             <div className="flex shrink-0 flex-wrap gap-3">
               <Link
                 href="/onboarding/common"
-                className="rounded-xl border border-white/20 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+                className="rounded-xl border border-white/20 px-4 py-3 text-sm font-medium text-white transition-all duration-150 hover:scale-105 hover:bg-white/10 active:scale-95"
               >
                 정보 수정
               </Link>
               <Link
                 href="/onboarding/upload"
-                className="rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                className="rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition-all duration-150 hover:scale-105 hover:bg-cyan-400 active:scale-95"
               >
                 성적증명서 재업로드
               </Link>
@@ -107,7 +107,7 @@ export default function DashboardClient({ scholarships }: Props) {
                   key={tab}
                   type="button"
                   onClick={() => setActiveTab(tab)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-150 hover:scale-105 active:scale-95 ${
                     activeTab === tab
                       ? "bg-slate-950 text-white"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -121,20 +121,22 @@ export default function DashboardClient({ scholarships }: Props) {
             <FilterBar sortKey={sortKey} onSortChange={setSortKey} />
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-2">
-            {allTags.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => toggleTag(tag)}
-                className={`rounded-full px-3 py-2 text-sm transition ${
-                  activeTags.includes(tag)
-                    ? "bg-slate-950 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                {tag}
-              </button>
+          <div className="mt-6 flex flex-wrap items-center gap-x-1 gap-y-2 text-sm">
+            {allTags.map((tag, index) => (
+              <span key={tag} className="flex items-center">
+                {index > 0 ? <span className="mr-1 text-slate-300">|</span> : null}
+                <button
+                  type="button"
+                  onClick={() => toggleTag(tag)}
+                  className={`rounded-md px-1 py-0.5 transition-all duration-150 hover:scale-110 ${
+                    activeTags.includes(tag)
+                      ? "font-semibold text-pine-700 underline underline-offset-4"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  {tag}
+                </button>
+              </span>
             ))}
           </div>
         </section>
