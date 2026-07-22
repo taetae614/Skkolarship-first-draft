@@ -21,6 +21,7 @@ function extractTranscript(saved: Record<string, unknown>): ParsedTranscript {
     gpa_cumulative_scale: (saved.gpa_cumulative_scale as ParsedTranscript["gpa_cumulative_scale"]) ?? null,
     percentile_cumulative: (saved.percentile_cumulative as number | null) ?? null,
     gpa_recent: (saved.gpa_recent as number | null) ?? null,
+    percentile_recent: (saved.percentile_recent as number | null) ?? null,
     credits_recent: (saved.credits_recent as number | null) ?? null,
     has_f_grade_recent: (saved.has_f_grade_recent as boolean | null) ?? null,
     credits_total: (saved.credits_total as number | null) ?? null,

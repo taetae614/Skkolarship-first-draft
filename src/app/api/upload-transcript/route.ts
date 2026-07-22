@@ -21,6 +21,11 @@ const TRANSCRIPT_SCHEMA: JsonSchema = {
     gpa_cumulative_scale: { type: "number", description: "평점 만점 기준. 4.5 또는 4.3" },
     percentile_cumulative: { type: "number", description: "누적 백분율(있는 경우), 0~100 사이 숫자" },
     gpa_recent: { type: "number", description: "가장 최근 학기의 평점" },
+    percentile_recent: {
+      type: "number",
+      description:
+        "성적표에 학기별로 기재된 '평점계' 값 중 가장 마지막(최근) 학기 행의 값. 직전학기 백분위를 의미함, 0~100 사이 숫자. 학기별 평점계 표가 없으면 생략할 것.",
+    },
     credits_recent: { type: "number", description: "가장 최근 학기에 이수한 학점" },
     has_f_grade_recent: { type: "boolean", description: "가장 최근 학기에 F 학점이 있는지 여부" },
     credits_total: { type: "number", description: "지금까지 이수한 전체 누적 학점" },
@@ -82,6 +87,7 @@ function normalizeTranscript(extracted: Record<string, unknown>): ParsedTranscri
     gpa_cumulative_scale: toGpaScale(extracted.gpa_cumulative_scale),
     percentile_cumulative: toNumberOrNull(extracted.percentile_cumulative),
     gpa_recent: toNumberOrNull(extracted.gpa_recent),
+    percentile_recent: toNumberOrNull(extracted.percentile_recent),
     credits_recent: toNumberOrNull(extracted.credits_recent),
     has_f_grade_recent: toBooleanOrNull(extracted.has_f_grade_recent),
     credits_total: toNumberOrNull(extracted.credits_total),

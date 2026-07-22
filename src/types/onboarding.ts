@@ -10,6 +10,7 @@ export interface ParsedTranscript {
   gpa_cumulative_scale: 4.5 | 4.3 | null;
   percentile_cumulative: number | null;
   gpa_recent: number | null;
+  percentile_recent: number | null;
   credits_recent: number | null;
   has_f_grade_recent: boolean | null;
   credits_total: number | null;

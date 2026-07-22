@@ -181,40 +181,50 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
     }
   }
 
-  // 직전학기 평점
+  // 직전학기 평점 — a couple of scholarships (푸른등대 두나무, 청년창업농장학금) state
+  // this as a 100점 백분위 requirement rather than the usual 4.5 GPA scale, same as
+  // the cumulative-GPA case. The transcript parser doesn't currently extract a
+  // recent-semester percentile (only percentile_cumulative), so this safely falls
+  // through to "정보 없음 → 조건부가능" for those two until that data exists, rather
+  // than comparing a 4.5-scale number against a 100-point threshold.
   if (eligibility.gpa_recent_min != null) {
-    if (profile.gpa_recent == null) {
+    const useRecent100Scale = eligibility.gpa_scale === 100;
+    const percentileRecent = (profile as unknown as { percentile_recent?: number | null }).percentile_recent ?? null;
+    const recentScore = useRecent100Scale ? percentileRecent : profile.gpa_recent;
+    const recentScaleLabel = useRecent100Scale ? "백분위" : "평점";
+
+    if (recentScore == null) {
       status = status === "지원불가" ? status : "조건부가능";
-      reasons.push("직전학기 GPA 정보가 없어 조건부 가능으로 분류했습니다.");
+      reasons.push(`직전학기 ${recentScaleLabel} 정보가 없어 조건부 가능으로 분류했습니다.`);
       criteria.push({
         key: "gpa_recent",
         label: "직전학기 평점",
         met: false,
-        detail: `기준 ${eligibility.gpa_recent_min}점 이상 / 내 성적 정보 없음`,
+        detail: `기준 ${recentScaleLabel} ${eligibility.gpa_recent_min}점 이상 / 내 ${recentScaleLabel} 정보 없음`,
         actionHint: "성적증명서 정보를 다시 확인해주세요.",
       });
-    } else if (profile.gpa_recent < eligibility.gpa_recent_min) {
+    } else if (recentScore < eligibility.gpa_recent_min) {
       status = "지원불가";
       unmetConditions.push("직전학기 GPA 미달");
       reasons.push(
-        `직전학기 평점 기준 ${eligibility.gpa_recent_min}점이지만 현재 ${profile.gpa_recent}점으로 확인되어 지원이 어렵습니다.`,
+        `직전학기 ${recentScaleLabel} 기준 ${eligibility.gpa_recent_min}점이지만 현재 ${recentScore}점으로 확인되어 지원이 어렵습니다.`,
       );
       criteria.push({
         key: "gpa_recent",
         label: "직전학기 평점",
         met: false,
-        detail: `기준 ${eligibility.gpa_recent_min}점 이상 / 내 성적 ${profile.gpa_recent}점`,
+        detail: `기준 ${recentScaleLabel} ${eligibility.gpa_recent_min}점 이상 / 내 ${recentScaleLabel} ${recentScore}점`,
         actionHint: "직전 학기 성적을 더 올려보세요.",
       });
     } else {
-      if (profile.gpa_recent - eligibility.gpa_recent_min <= 0.1) {
+      if (!useRecent100Scale && recentScore - eligibility.gpa_recent_min <= 0.1) {
         reasons.push("성적이 기준에 아슬아슬해 성적 확정 후 재확인이 필요합니다.");
       }
       criteria.push({
         key: "gpa_recent",
         label: "직전학기 평점",
         met: true,
-        detail: `기준 ${eligibility.gpa_recent_min}점 이상 / 내 성적 ${profile.gpa_recent}점`,
+        detail: `기준 ${recentScaleLabel} ${eligibility.gpa_recent_min}점 이상 / 내 ${recentScaleLabel} ${recentScore}점`,
       });
     }
   }

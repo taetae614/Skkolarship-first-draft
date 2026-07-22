@@ -45,6 +45,7 @@ export function buildOnboardingProfile(
     semester_progress: transcript.semester_progress,
     has_f_grade_recent: transcript.has_f_grade_recent,
     percentile_cumulative: transcript.percentile_cumulative,
+    percentile_recent: transcript.percentile_recent,
     gpa_cumulative_scale: transcript.gpa_cumulative_scale,
     parsed_at: transcript.parsed_at,
     needs_confirmation: transcript.needs_confirmation,
