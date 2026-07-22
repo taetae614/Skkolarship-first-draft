@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { CombinationResult } from "@/engine/bestCombination";
 
 function formatKrw(amount: number) {
@@ -30,14 +31,16 @@ export default function BestCombinationCard({ combination }: { combination: Comb
 
       <ul className="mt-4 flex flex-wrap gap-2">
         {items.map((item) => (
-          <li
-            key={item.id}
-            className="rounded-full bg-white px-4 py-2 text-sm font-medium text-navy-800 shadow-sm ring-1 ring-pine-200"
-          >
-            {item.name}
-            {item.amount_max_krw ? (
-              <span className="ml-1.5 text-pine-600">+{formatKrw(item.amount_max_krw)}</span>
-            ) : null}
+          <li key={item.id}>
+            <Link
+              href={`/scholarships/${item.id}`}
+              className="inline-flex items-center rounded-full bg-white px-4 py-2 text-sm font-medium text-navy-800 shadow-sm ring-1 ring-pine-200 transition hover:scale-105 hover:ring-pine-400 active:scale-95"
+            >
+              {item.name}
+              {item.amount_max_krw ? (
+                <span className="ml-1.5 text-pine-600">+{formatKrw(item.amount_max_krw)}</span>
+              ) : null}
+            </Link>
           </li>
         ))}
       </ul>
