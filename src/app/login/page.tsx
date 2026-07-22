@@ -16,7 +16,7 @@ export default function LoginPage() {
         className="animate-fade-up max-w-2xl text-center text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl"
         style={{ animationDelay: "0ms" }}
       >
-        나에게 딱 맞는 장학금 찾아보기
+        나에게 <span className="animate-ttak" style={{ animationDelay: "600ms" }}>딱</span> 맞는 장학금 찾아보기
       </h1>
 
       <div className="animate-fade-up mt-10" style={{ animationDelay: "400ms" }}>

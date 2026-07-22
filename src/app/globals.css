@@ -64,3 +64,23 @@ a {
   opacity: 0;
   animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+@keyframes ttak-flick {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    color: inherit;
+  }
+  40% {
+    transform: translate(10px, -16px) rotate(10deg);
+    color: inherit;
+  }
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+    color: #34b880;
+  }
+}
+
+.animate-ttak {
+  display: inline-block;
+  animation: ttak-flick 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
