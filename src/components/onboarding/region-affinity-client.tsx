@@ -7,14 +7,6 @@ import { scholarshipSeed } from "@/lib/scholarships";
 import { buildOnboardingProfile, matchScholarships } from "@/lib/onboarding/matchScholarships";
 import Logo from "@/components/brand/logo";
 
-async function saveProfile(profile: unknown) {
-  await fetch("/api/profile", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(profile),
-  });
-}
-
 const fieldStyle =
   "w-full rounded-xl border border-navy-100 bg-white px-4 py-3 text-navy-900 placeholder:text-navy-300 outline-none transition focus:border-pine-500 focus:ring-2 focus:ring-pine-500/30";
 
@@ -24,6 +16,7 @@ export default function RegionAffinityClient() {
   const answers = useOnboardingStore((state) => state.commonAnswers);
   const specialStatus = useOnboardingStore((state) => state.specialStatus);
   const setStudentProfile = useOnboardingStore((state) => state.setStudentProfile);
+  const setRegionAffinity = useOnboardingStore((state) => state.setRegionAffinity);
   const [highSchoolSido, setHighSchoolSido] = useState("");
   const [birthPlace, setBirthPlace] = useState("");
   const [parentOrigin, setParentOrigin] = useState("");
@@ -37,15 +30,15 @@ export default function RegionAffinityClient() {
   const matches = useMemo(() => (profile ? matchScholarships(profile, scholarshipSeed) : []), [profile]);
 
   async function finish() {
+    setRegionAffinity({ high_school_sido: highSchoolSido, birth_place: birthPlace, parent_origin_or_residence: parentOrigin });
     if (!profile) {
       router.push("/dashboard");
       return;
     }
     setSaving(true);
     setStudentProfile(profile);
-    await saveProfile(profile);
     setSaving(false);
-    router.push("/dashboard");
+    router.push("/onboarding/extra");
   }
 
   return (

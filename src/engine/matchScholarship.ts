@@ -451,6 +451,110 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
     }
   }
 
+  // 조건부 추가질문 게이트 — onboarding's CONDITIONAL_TRIGGERS system asks a small,
+  // hand-verified subset of scholarships' free-text requirements (전공계열, 진로
+  // 희망, 교환학생 예정, 신입생 여부 등) directly, since these can't be reliably
+  // derived from any other structured field. See CONDITIONAL_GATES below for the
+  // exact requirement text each gate maps to.
+  const conditionalGates = CONDITIONAL_GATES[scholarship.id];
+  if (conditionalGates) {
+    const conditionalAnswers = (profile as unknown as { conditional_answers?: Record<string, boolean> }).conditional_answers ?? {};
+    for (const gate of conditionalGates) {
+      const answer = conditionalAnswers[gate.questionId];
+      const key = `conditional_${gate.questionId}_${scholarship.id}`;
+      if (answer === undefined) {
+        status = status === "지원불가" ? status : "조건부가능";
+        reasons.push(`${gate.label} 확인이 필요해 조건부 가능으로 분류했습니다.`);
+        criteria.push({
+          key,
+          label: gate.label,
+          met: false,
+          detail: `${gate.requirementText} 아직 답변하지 않았어요.`,
+          actionHint: "온보딩 추가 확인 질문에서 답변해주세요.",
+        });
+      } else {
+        const met = answer === gate.requireTrue;
+        if (!met) {
+          status = "지원불가";
+          unmetConditions.push(`${gate.label} 미충족`);
+          reasons.push(gate.requirementText);
+        }
+        criteria.push({ key, label: gate.label, met, detail: gate.requirementText });
+      }
+    }
+  }
+
+  // 학생성공-복지사각지대 디딤돌장학금 — normal income_bracket_max checks assume
+  // "lower bracket = more need = qualifies", but this scholarship is specifically
+  // for the opposite gap case: brackets 6~10 or 미산정(unassessed), which the
+  // existing single-max-threshold field can't express. Derived directly from the
+  // income_bracket answer already collected in onboarding, no new question needed.
+  if (scholarship.id === "skku-didimdol-welfare-gap") {
+    const bracket = profile.income_bracket;
+    // buildOnboardingProfile already collapses "미산정"/"모름" answers to null
+    // alongside a truly-unanswered question, so this can only confidently detect
+    // the numeric 6~10구간 case — the null bucket below covers both of the others
+    // and safely defers to a manual check rather than guessing which one it was.
+    if (bracket == null) {
+      status = status === "지원불가" ? status : "조건부가능";
+      reasons.push("소득구간 정보가 없어 조건부 가능으로 분류했습니다.");
+      criteria.push({
+        key: "income_gap",
+        label: "소득구간(복지 사각지대)",
+        met: false,
+        detail: "요구 조건: 소득구간 6~10구간 또는 미산정 / 내 소득구간 정보 없음",
+        actionHint: "소득분위 정보를 입력해주세요.",
+      });
+    } else {
+      const met = bracket >= 6;
+      if (!met) {
+        status = "지원불가";
+        unmetConditions.push("소득구간 6~10구간/미산정 미해당");
+        reasons.push("이 장학금은 소득구간 6~10구간이거나 소득분위가 산정되지 않은 경우만 대상입니다.");
+      }
+      criteria.push({
+        key: "income_gap",
+        label: "소득구간(복지 사각지대)",
+        met,
+        detail: `요구 조건: 소득구간 6~10구간 또는 미산정 / 내 소득구간 ${bracket}`,
+      });
+    }
+  }
+
+  // 강원랜드 멘토링 장학 — region_requirement is about the student's *high school*
+  // location ("석탄산업전환지역 소재 고교 출신"), not current residence, so the usual
+  // "거주" parser doesn't apply. Checked directly against region_affinity.high_school_sido,
+  // already collected in onboarding.
+  if (scholarship.id === "ext-gangwonland-mentoring") {
+    const coalRegionPattern = /정선|태백|영월|삼척|보령|문경|화순/;
+    const highSchoolSido = (profile as unknown as { region_affinity?: { high_school_sido?: string | null } }).region_affinity
+      ?.high_school_sido;
+    if (!highSchoolSido) {
+      status = status === "지원불가" ? status : "조건부가능";
+      reasons.push("출신고교 지역 정보가 없어 조건부 가능으로 분류했습니다.");
+      criteria.push({
+        key: "high_school_region",
+        label: "출신고교 지역",
+        met: false,
+        detail: "요구 조건: 석탄산업전환지역(정선/태백/영월/삼척/보령/문경/화순) 소재 고교 출신 / 정보 없음",
+        actionHint: "온보딩에서 출신고교 소재지를 입력해주세요.",
+      });
+    } else {
+      const met = coalRegionPattern.test(highSchoolSido);
+      if (!met) {
+        status = "지원불가";
+        unmetConditions.push("출신고교 지역 미충족");
+        reasons.push("석탄산업전환지역(정선/태백/영월/삼척/보령/문경/화순) 소재 고교 출신만 지원 가능합니다.");
+      }
+      criteria.push({
+        key: "high_school_region",
+        label: "출신고교 지역",
+        met,
+        detail: `요구 조건: 석탄산업전환지역 소재 고교 출신 / 내 출신고교 지역: ${highSchoolSido}`,
+      });
+    }
+  }
+
   if (scholarship.eligibility.other_conditions) {
     reasons.push(scholarship.eligibility.other_conditions);
   }
@@ -504,6 +608,65 @@ function computeMatchBonus(profile: StudentProfile, scholarship: Scholarship) {
 
 // Maps the onboarding "저소득 유형" select (기초생활수급/차상위/한부모/해당없음) onto
 // the same canonical category names used elsewhere so the two data sources agree.
+// Maps scholarship id -> the onboarding conditional-question(s) that gate it.
+// questionId matches the id used by the corresponding CONDITIONAL_TRIGGERS entry
+// in src/types/onboarding.ts (WIRED_TRIGGER_IDS marks which ones are asked).
+// Each entry was checked against the scholarship's actual eligibility text before
+// being added here — see the audit notes in that file for what was excluded and why.
+const CONDITIONAL_GATES: Record<
+  string,
+  { questionId: string; requireTrue: boolean; label: string; requirementText: string }[]
+> = {
+  "ext-seoulfuture-exchange": [
+    { questionId: "exchange-plan", requireTrue: true, label: "교환학생 파견 예정", requirementText: "당해년도 2학기 교환학생 파견(예정)자만 지원 가능해요." },
+  ],
+  "ext-miraeasset": [
+    { questionId: "exchange-plan", requireTrue: true, label: "교환학생 파견 예정", requirementText: "모교 교환학생 파견을 재학 중 최초 획득(예정)해야 해요." },
+  ],
+  "skku-jobyeongdu": [
+    { questionId: "exchange-plan", requireTrue: false, label: "교환학생 파견 예정 아님", requirementText: "교환학생 파견(해외체류) 예정자는 신청할 수 없어요." },
+  ],
+  "ext-ilchon": [
+    { questionId: "stem-track", requireTrue: true, label: "이공계 전공", requirementText: "자연/공학 계열 전공만 지원 가능해요." },
+  ],
+  "ext-surim": [
+    { questionId: "stem-track", requireTrue: true, label: "이공계 전공", requirementText: "이공계열(재단 지정 학과)만 지원 가능해요." },
+  ],
+  "ext-samsong": [
+    { questionId: "stem-track", requireTrue: true, label: "이공계 전공", requirementText: "전기·전자·기계·신소재공학 등 공학계열만 지원 가능해요." },
+  ],
+  "ext-suwon-gwahak": [
+    { questionId: "stem-track", requireTrue: true, label: "이공계 전공", requirementText: "이공계 재학생만 지원 가능해요." },
+  ],
+  "ext-hyundai-cmk": [
+    { questionId: "stem-track", requireTrue: true, label: "이공계 전공", requirementText: "이공계 전 분야 재학생만 지원 가능해요." },
+  ],
+  "ext-pureundae-doonamu": [
+    { questionId: "it-career", requireTrue: true, label: "IT/블록체인 진로 희망", requirementText: "IT/블록체인 관련 진로 희망자만 지원 가능해요." },
+  ],
+  "ext-lotte-sinkyeokho": [
+    { questionId: "media-career", requireTrue: true, label: "언론/미디어 진로 희망", requirementText: "언론·미디어(PD/기자/아나운서/기획마케팅) 취업 희망자만 지원 가능해요." },
+  ],
+  "ext-rural-youth-startup": [
+    { questionId: "agri-career", requireTrue: true, label: "농업/창업 진로 희망", requirementText: "졸업 후 영농/농림축산식품 분야 의무 종사가 가능한 창업 희망자만 지원 가능해요." },
+  ],
+  "ext-bogeon-research": [
+    { questionId: "research-plan", requireTrue: true, label: "연구계획", requirementText: "연구 지도교수와 함께하는 연구계획이 필요해요." },
+  ],
+  "skku-medical-ai-research": [
+    { questionId: "research-plan", requireTrue: true, label: "연구계획", requirementText: "의료AI 관련 연구/논문 참여 계획이 필요해요." },
+  ],
+  "skku-campus-life-didimdol": [
+    { questionId: "freshman", requireTrue: true, label: "신입생 여부", requirementText: "학부 신입생만 지원 가능해요." },
+  ],
+  "ext-yoon-seyoung": [
+    { questionId: "freshman", requireTrue: true, label: "신입생 여부", requirementText: "2026년도 신입생만 지원 가능해요." },
+  ],
+  "skku-samsung-convergence-track": [
+    { questionId: "freshman", requireTrue: true, label: "신입생 여부", requirementText: "2026학년도 학부 신입생 및 2025년 후기 입학생만 지원 가능해요." },
+  ],
+};
+
 const LOW_INCOME_TYPE_TO_CATEGORY: Record<string, string> = {
   기초생활수급: "기초생활수급자",
   차상위: "차상위계층",

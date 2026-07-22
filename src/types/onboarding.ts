@@ -86,6 +86,7 @@ export interface StudentProfileFull
   can_attend_mandatory_events?: CommonAnswers["can_attend_mandatory_events"];
   income_bracket?: CommonAnswers["income_bracket"];
   major?: string | null;
+  conditional_answers?: Record<string, boolean>;
 }
 
 export type ConditionalQuestion = {
@@ -288,4 +289,23 @@ export const CONDITIONAL_TRIGGERS: ConditionalTrigger[] = [
       "ext-surim",
     ],
   },
+];
+
+// CONDITIONAL_TRIGGERS was fully designed but never wired into the onboarding UI or
+// the matching engine. Cross-checking each trigger's related scholarships against
+// their actual eligibility text found several mismatches (e.g. "고시 준비 중"
+// doesn't match "이미 합격한 사람", "불교학생회 소속" is a stated preference not a
+// requirement, "추천서 요청 가능" is a document-logistics question, not eligibility).
+// Only these trigger_ids correspond to a real, unambiguous pass/fail requirement —
+// those are the ones actually asked and used to gate matching. The rest stay defined
+// above (useful reference / future candidates) but are intentionally not surfaced.
+export const WIRED_TRIGGER_IDS = [
+  "exchange-plan",
+  "stem-engineering",
+  "hyundai-cmk",
+  "it-blockchain",
+  "media-journalism",
+  "agri-startup",
+  "research-plan",
+  "freshman",
 ];
