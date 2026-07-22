@@ -36,10 +36,10 @@ const config: Config = {
       },
       fontFamily: {
         sans: [
+          "SUIT Variable",
           "-apple-system",
           "BlinkMacSystemFont",
           "Apple SD Gothic Neo",
-          "Pretendard Variable",
           "Segoe UI",
           "Malgun Gothic",
           "sans-serif",

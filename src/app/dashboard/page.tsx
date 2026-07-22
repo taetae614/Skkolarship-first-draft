@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import DashboardClient from "@/components/dashboard/dashboard-client";
 import { getPersonalizedScholarships } from "@/lib/onboarding/getPersonalizedScholarships";
+import { getBestScholarshipCombination } from "@/lib/onboarding/getBestCombination";
 import type { StudentProfileFull } from "@/types/onboarding";
 
 export default async function DashboardPage() {
@@ -22,6 +23,7 @@ export default async function DashboardPage() {
   }
 
   const scholarships = getPersonalizedScholarships(savedProfile);
+  const combination = getBestScholarshipCombination(savedProfile);
 
-  return <DashboardClient scholarships={scholarships} />;
+  return <DashboardClient scholarships={scholarships} combination={combination} />;
 }

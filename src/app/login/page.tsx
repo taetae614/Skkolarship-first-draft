@@ -3,11 +3,34 @@ import LoginForm from "@/components/login-form";
 
 export default function LoginPage() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-6 py-16">
-      <Logo size="lg" className="mb-10" />
-      <div className="w-full rounded-3xl border border-navy-100 bg-white p-8 shadow-[0_20px_60px_-25px_rgba(11,28,49,0.35)]">
+    <main
+      className="flex min-h-screen flex-col items-center justify-center bg-navy-950 px-6 py-20 text-white"
+      style={{
+        // Placeholder gradient until the SKKU campus photo asset is added —
+        // swap the background-image for the photo URL once available.
+        backgroundImage:
+          "radial-gradient(circle at 28% 18%, rgba(52,184,128,0.28), transparent 55%), " +
+          "radial-gradient(circle at 75% 75%, rgba(45,77,112,0.45), transparent 50%), " +
+          "linear-gradient(180deg, #040d19 0%, #071526 55%, #040d19 100%)",
+      }}
+    >
+      <h1
+        className="animate-fade-up max-w-2xl text-center text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl"
+        style={{ animationDelay: "0ms" }}
+      >
+        나에게 딱 맞는 장학금 찾아보기
+      </h1>
+
+      <div className="animate-fade-up mt-10" style={{ animationDelay: "400ms" }}>
+        <Logo size="lg" tone="light" />
+      </div>
+
+      <div
+        className="animate-fade-up mt-10 w-full max-w-xl rounded-3xl border border-white/10 bg-white p-8 text-navy-900 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]"
+        style={{ animationDelay: "800ms" }}
+      >
         <p className="text-xs font-bold tracking-[0.3em] text-pine-600">SKKU 학생 전용</p>
-        <h1 className="mt-3 text-3xl font-extrabold text-navy-900">로그인</h1>
+        <h2 className="mt-3 text-3xl font-extrabold text-navy-900">로그인</h2>
         <p className="mt-2 text-navy-500">
           학교 Google 계정(g.skku.edu)으로 로그인하고 나에게 맞는 장학금을 찾아보세요.
         </p>

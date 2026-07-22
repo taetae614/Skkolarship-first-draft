@@ -75,9 +75,9 @@ export default function ScholarshipCard({
         </div>
       </div>
 
-      {scholarship.matchCriteria && scholarship.matchCriteria.length > 0 ? (
-        <div className="mt-5 rounded-2xl border border-slate-200 p-4">
-          <p className="text-sm font-medium text-slate-800">판단 근거</p>
+      <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+        <p className="text-sm font-medium text-slate-800">판단 근거</p>
+        {scholarship.matchCriteria && scholarship.matchCriteria.length > 0 ? (
           <ul className="mt-3 space-y-2">
             {scholarship.matchCriteria.map((criterion) => (
               <li
@@ -101,8 +101,13 @@ export default function ScholarshipCard({
               </li>
             ))}
           </ul>
-        </div>
-      ) : null}
+        ) : (
+          <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            ⚠️ 이 장학금은 정량적 자격 조건(학년·평점·학점 등)이 데이터에 등록되어 있지 않아 자동으로 판단할 수 없어요.
+            공식 공고를 직접 확인해주세요.
+          </p>
+        )}
+      </div>
 
       <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
         <p className="font-medium text-slate-800">주의 사항</p>

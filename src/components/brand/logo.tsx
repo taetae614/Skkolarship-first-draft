@@ -2,6 +2,8 @@ type LogoProps = {
   size?: "sm" | "md" | "lg";
   withWordmark?: boolean;
   withCaption?: boolean;
+  /** Use "light" wordmark text on dark backgrounds (e.g. the login hero). */
+  tone?: "dark" | "light";
   className?: string;
 };
 
@@ -16,8 +18,16 @@ const SIZE_MAP = {
  * Swap the <svg> below for an <Image src="/skku-logo.svg" /> once available —
  * the surrounding layout (size, spacing, wordmark) stays the same.
  */
-export default function Logo({ size = "md", withWordmark = true, withCaption = true, className = "" }: LogoProps) {
+export default function Logo({
+  size = "md",
+  withWordmark = true,
+  withCaption = true,
+  tone = "dark",
+  className = "",
+}: LogoProps) {
   const dims = SIZE_MAP[size];
+  const titleColor = tone === "light" ? "text-white" : "text-navy-900";
+  const captionColor = tone === "light" ? "text-white/70" : "text-navy-500";
 
   return (
     <div className={`flex items-center gap-3 ${className}`}>
@@ -40,8 +50,8 @@ export default function Logo({ size = "md", withWordmark = true, withCaption = t
       </svg>
       {withWordmark ? (
         <div className="leading-tight">
-          <p className={`font-extrabold tracking-tight text-navy-900 ${dims.title}`}>Skkolarship</p>
-          {withCaption ? <p className={`font-medium text-navy-500 ${dims.caption}`}>성균관대학교 장학금 매칭 서비스</p> : null}
+          <p className={`font-extrabold tracking-tight ${titleColor} ${dims.title}`}>Skkolarship</p>
+          {withCaption ? <p className={`font-medium ${captionColor} ${dims.caption}`}>성균관대학교 장학금 매칭 서비스</p> : null}
         </div>
       ) : null}
     </div>
