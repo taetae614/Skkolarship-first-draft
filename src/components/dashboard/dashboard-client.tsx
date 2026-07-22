@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 import type { Scholarship, ScholarshipStatus } from "@/lib/scholarships";
 import { SCHOLARSHIP_STATUS_LABELS } from "@/lib/scholarships";
 import type { CombinationResult } from "@/engine/bestCombination";
+import Logo from "@/components/brand/logo";
 import FilterBar from "@/components/dashboard/filter-bar";
 import ScholarshipCard from "@/components/dashboard/scholarship-card";
 import ScholarshipCalendar from "@/components/dashboard/scholarship-calendar";
@@ -73,10 +74,17 @@ export default function DashboardClient({ scholarships, combination }: Props) {
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
-      <div className="mx-auto max-w-7xl px-6 py-10">
-        <div className="rounded-[2rem] bg-slate-950 p-8 text-white shadow-xl shadow-slate-300/20">
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-10 sm:px-6 lg:px-10">
+        <div
+          className="rounded-[2rem] p-8 text-white shadow-xl shadow-slate-300/20"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 15% 15%, rgba(52,184,128,0.30), transparent 55%), " +
+              "linear-gradient(180deg, rgba(4,13,25,0.96) 0%, rgba(7,21,38,0.94) 55%, rgba(4,13,25,1) 100%)",
+          }}
+        >
           <div className="flex items-start justify-between gap-4">
-            <p className="text-sm font-semibold tracking-[0.25em] text-cyan-300">SKKOLARSHIP</p>
+            <Logo size="sm" tone="light" withCaption={false} />
             <div className="flex shrink-0 items-center gap-3">
               <Link
                 href="/admin/scholarships"
