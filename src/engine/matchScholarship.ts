@@ -777,6 +777,31 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
     }
   }
 
+  // 삼성융합인재Track장학금 — 특정 신입생 학과, 외국인전형 입학자는 지원 불가.
+  // "삼성과학인재Track 선발자는 지원 불가"는 데이터가 없어 텍스트 안내로만 남긴다.
+  if (scholarship.id === "skku-samsung-convergence-track") {
+    const excludedMajors = ["지능형소프트웨어학과", "반도체시스템공학과", "응용AI융합학부", "배터리학과"];
+    const studentMajor = profile.major ?? "";
+    if (excludedMajors.some((major) => studentMajor.includes(major))) {
+      status = "지원불가";
+      unmetConditions.push("제외 대상 학과 신입생");
+      reasons.push("지능형소프트웨어학과·반도체시스템공학과·응용AI융합학부·배터리학과 신입생은 지원할 수 없어요.");
+      criteria.push({
+        key: "excluded_major",
+        label: "제외 대상 학과",
+        met: false,
+        detail: `내 학과(${studentMajor})는 이 장학금 지원 제외 대상이에요.`,
+      });
+    }
+    const nationality = (profile as unknown as { nationality?: string | null }).nationality ?? null;
+    if (nationality === "외국인") {
+      status = "지원불가";
+      unmetConditions.push("외국인전형 제외 대상");
+      reasons.push("외국인전형 입학자는 지원할 수 없어요.");
+      criteria.push({ key: "nationality_exclusion", label: "국적(외국인전형)", met: false, detail: "외국인전형 입학자는 지원할 수 없어요." });
+    }
+  }
+
   // 우인장학재단 — cap_rule: "타 장학금(국가장학금/교내/근로장학금 제외) 수혜 학생은
   // 선발 제외". Unlike the generic "불가" case above, this scholarship names its own
   // exceptions explicitly, so it's worth a dedicated hard gate rather than staying as
