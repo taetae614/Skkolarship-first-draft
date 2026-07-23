@@ -91,16 +91,6 @@ export default async function ScholarshipDetailPage({ params }: Props) {
           </div>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            {scholarship.pdfFormUrl ? (
-              <a
-                href={scholarship.pdfFormUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition hover:scale-105 active:scale-95"
-              >
-                원문 확인하기
-              </a>
-            ) : null}
             {scholarship.officialUrl ? (
               <a
                 href={scholarship.officialUrl}

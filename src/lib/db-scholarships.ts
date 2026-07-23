@@ -47,7 +47,6 @@ function convertDbScholarship(row: PrismaScholarship): AppScholarship {
     applyEnd: toDateString(row.applyEnd),
     applyPeriodNote: null,
     officialUrl: row.officialUrl,
-    pdfFormUrl: row.pdfFormUrl ?? "/docs/placeholder-announcement.pdf",
     requiredDocs: row.requiredDocs,
     riskFlags: row.riskFlags,
     tags: Array.from(new Set([sourceLabel, typeLabel, "AI 자동등록"])),
