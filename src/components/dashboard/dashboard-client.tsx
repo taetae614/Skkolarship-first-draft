@@ -7,7 +7,6 @@ import type { Scholarship, ScholarshipStatus } from "@/lib/scholarships";
 import { SCHOLARSHIP_STATUS_LABELS } from "@/lib/scholarships";
 import type { CombinationResult } from "@/engine/bestCombination";
 import Logo from "@/components/brand/logo";
-import UniversitySeal from "@/components/brand/university-seal";
 import FilterBar from "@/components/dashboard/filter-bar";
 import ScholarshipCard from "@/components/dashboard/scholarship-card";
 import ScholarshipCalendar from "@/components/dashboard/scholarship-calendar";
@@ -86,11 +85,7 @@ export default function DashboardClient({ scholarships, combination, userName }:
           }}
         >
           <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Logo size="md" tone="light" withCaption={false} />
-              <div className="h-9 w-px bg-white/20" />
-              <UniversitySeal size={40} />
-            </div>
+            <Logo size="md" tone="light" withCaption={false} />
             <div className="flex shrink-0 items-center gap-3">
               <Link
                 href="/admin/scholarships"
