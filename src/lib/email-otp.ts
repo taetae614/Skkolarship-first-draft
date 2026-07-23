@@ -48,7 +48,7 @@ async function sendOtpEmail(email: string, code: string) {
   await transport.sendMail({
     from,
     to: email,
-    subject: "[Skkolarship] 이메일 인증코드",
+    subject: "[SKKolarship] 이메일 인증코드",
     text: `인증코드: ${code}\n5분 안에 입력해주세요.`,
   });
 }

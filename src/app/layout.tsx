@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Skkolarship",
+  title: "SKKolarship",
   description: "성균관대학교 학생을 위한 AI 장학금 매칭 서비스",
 };
 

@@ -30,7 +30,7 @@ export default function Logo({
     <div className={`flex items-center gap-3 ${className}`}>
       <Image
         src="/brand/skku-logo.png"
-        alt="Skkolarship"
+        alt="SKKolarship"
         width={dims.mark}
         height={dims.mark}
         className="shrink-0 rounded-full"
@@ -38,7 +38,7 @@ export default function Logo({
       />
       {withWordmark ? (
         <div className="leading-tight">
-          <p className={`font-extrabold tracking-tight ${titleColor} ${dims.title}`}>Skkolarship</p>
+          <p className={`font-extrabold tracking-tight ${titleColor} ${dims.title}`}>SKKolarship</p>
           {withCaption ? <p className={`font-medium ${captionColor} ${dims.caption}`}>성균관대학교 장학금 매칭 서비스</p> : null}
         </div>
       ) : null}
