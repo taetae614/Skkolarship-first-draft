@@ -1,4 +1,5 @@
 import Logo from "@/components/brand/logo";
+import UniversitySeal from "@/components/brand/university-seal";
 import LoginForm from "@/components/login-form";
 
 export default function LoginPage() {
@@ -19,8 +20,10 @@ export default function LoginPage() {
         나에게 <span className="animate-ttak" style={{ animationDelay: "600ms" }}>딱</span> 맞는 장학금 찾아보기
       </h1>
 
-      <div className="animate-fade-up mt-10" style={{ animationDelay: "400ms" }}>
+      <div className="animate-fade-up mt-10 flex items-center gap-4" style={{ animationDelay: "400ms" }}>
         <Logo size="lg" tone="light" />
+        <div className="h-12 w-px bg-white/20" />
+        <UniversitySeal size={56} />
       </div>
 
       <div

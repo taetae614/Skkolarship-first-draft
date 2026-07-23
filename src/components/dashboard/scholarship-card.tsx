@@ -166,16 +166,6 @@ export default function ScholarshipCard({
         >
           상세 보기
         </Link>
-        {scholarship.officialUrl ? (
-          <a
-            href={scholarship.officialUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-150 hover:scale-105 active:scale-95"
-          >
-            공고 링크
-          </a>
-        ) : null}
       </div>
     </article>
   );
