@@ -9,8 +9,9 @@ type Props = {
   params: { id: string };
 };
 
-export default function ScholarshipDetailPage({ params }: Props) {
-  const scholarship = getScholarshipById(params.id);
+// getScholarshipById가 이제 Prisma를 조회하는 비동기 함수라 컴포넌트도 async로 바뀌어야 함.
+export default async function ScholarshipDetailPage({ params }: Props) {
+  const scholarship = await getScholarshipById(params.id);
   if (!scholarship) notFound();
 
   const warnings = buildWarnings(scholarship);
@@ -35,7 +36,7 @@ export default function ScholarshipDetailPage({ params }: Props) {
           </div>
 
           <h1 className="mt-5 text-3xl font-semibold">{scholarship.name}</h1>
-          <p className="mt-3 text-slate-600">{scholarship.amount}</p>
+          <p className="mt-3 text-slate-600">{scholarship.amount || "지급 금액 정보가 등록되어 있지 않아요."}</p>
 
           <div className="mt-8 grid gap-5 lg:grid-cols-2">
             <InfoCard title="자격 요건" description="이 장학금을 받으려면 충족해야 하는 정량 조건이에요.">
@@ -65,11 +66,15 @@ export default function ScholarshipDetailPage({ params }: Props) {
 
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
             <InfoCard title="서류">
-              <ul className="space-y-2 text-sm text-slate-600">
-                {scholarship.requiredDocs.map((doc) => (
-                  <li key={doc}>• {doc}</li>
-                ))}
-              </ul>
+              {scholarship.requiredDocs.length > 0 ? (
+                <ul className="space-y-2 text-sm text-slate-600">
+                  {scholarship.requiredDocs.map((doc) => (
+                    <li key={doc}>• {doc}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-slate-400">등록된 제출 서류 정보가 없어요.</p>
+              )}
             </InfoCard>
             <InfoCard title="중복 수혜 규칙" description="다른 장학금과 동시에 받을 수 있는지에 대한 규칙이에요.">
               <ul className="space-y-2 text-sm text-slate-700">

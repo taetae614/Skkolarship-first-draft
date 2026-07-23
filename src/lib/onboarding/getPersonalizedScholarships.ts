@@ -9,8 +9,11 @@ const STATUS_MAP: Record<string, Scholarship["status"]> = {
   지원불가: "INELIGIBLE",
 };
 
-export function getPersonalizedScholarships(profile: StudentProfileFull): Scholarship[] {
-  return scholarshipSeed.map((scholarship) => {
+export function getPersonalizedScholarships(
+  profile: StudentProfileFull,
+  extraScholarships: Scholarship[] = [],
+): Scholarship[] {
+  return [...scholarshipSeed, ...extraScholarships].map((scholarship) => {
     const result = judge(profile, scholarship);
     return {
       ...scholarship,

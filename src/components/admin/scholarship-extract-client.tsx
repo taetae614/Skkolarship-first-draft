@@ -24,6 +24,27 @@ type ExtractedScholarship = {
 const fieldStyle =
   "w-full rounded-xl border border-navy-100 bg-white px-4 py-3 text-navy-900 outline-none transition focus:border-pine-500 focus:ring-2 focus:ring-pine-500/30";
 
+// Upstage 추출 결과가 숫자 필드를 문자열("3.0")로 주거나 누락시키는 경우가 있어
+// 저장 요청을 보내기 전에 한 번 더 안전하게 정규화한다.
+function normalizeForSave(result: ExtractedScholarship): ExtractedScholarship {
+  return {
+    ...result,
+    name: result.name?.trim() ?? "",
+    amount_text: result.amount_text?.trim() ?? "",
+    gpa_recent_min: coerceNumber(result.gpa_recent_min),
+    gpa_cumulative_min: coerceNumber(result.gpa_cumulative_min),
+    income_bracket_max: coerceNumber(result.income_bracket_max),
+    special_status: Array.isArray(result.special_status) ? result.special_status.filter(Boolean) : [],
+    required_docs: Array.isArray(result.required_docs) ? result.required_docs.filter(Boolean) : [],
+  };
+}
+
+function coerceNumber(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
+  return 0;
+}
+
 export default function ScholarshipExtractClient() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -44,9 +65,12 @@ export default function ScholarshipExtractClient() {
       const body = new FormData();
       body.append("file", file);
       const response = await fetch("/api/extract-scholarship", { method: "POST", body });
-      const data = (await response.json()) as { ok: boolean; extracted?: ExtractedScholarship; message?: string };
-      if (!data.ok || !data.extracted) {
-        setError(data.message ?? "분석에 실패했습니다.");
+      const data = (await response.json().catch(() => null)) as
+        | { ok: boolean; extracted?: ExtractedScholarship; message?: string }
+        | null;
+
+      if (!response.ok || !data?.ok || !data.extracted) {
+        setError(data?.message ?? "분석에 실패했습니다.");
         return;
       }
       setResult(data.extracted);
@@ -59,18 +83,36 @@ export default function ScholarshipExtractClient() {
 
   async function handleSave() {
     if (!result) return;
+
+    const payload = normalizeForSave(result);
+
+    // 저장 전 최소한의 필수값 검증 (백엔드에서도 동일하게 검증하지만
+    // 여기서 걸러주면 왕복 없이 바로 사용자에게 안내할 수 있다)
+    if (!payload.name) {
+      setError("장학금 이름이 비어 있어 저장할 수 없습니다.");
+      return;
+    }
+    if (!payload.amount_text) {
+      setError("지급 금액 정보가 비어 있어 저장할 수 없습니다.");
+      return;
+    }
+
     setSaving(true);
+    setError(null);
     try {
       const response = await fetch("/api/scholarships", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(result),
+        body: JSON.stringify(payload),
       });
-      const data = (await response.json()) as { ok: boolean; id?: string; message?: string };
-      if (data.ok && data.id) {
+      const data = (await response.json().catch(() => null)) as
+        | { ok: boolean; id?: string; message?: string }
+        | null;
+
+      if (response.ok && data?.ok && data.id) {
         setSavedId(data.id);
       } else {
-        setError(data.message ?? "저장에 실패했습니다.");
+        setError(data?.message ?? `저장에 실패했습니다. (status ${response.status})`);
       }
     } catch {
       setError("저장 중 오류가 발생했습니다.");
@@ -117,14 +159,14 @@ export default function ScholarshipExtractClient() {
         {result ? (
           <div className="mt-6 rounded-2xl border border-navy-100 bg-navy-50/40 p-5">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold text-navy-900">{result.name}</h2>
+              <h2 className="text-lg font-bold text-navy-900">{result.name || "이름 미확인"}</h2>
               <span className="rounded-full bg-pine-100 px-3 py-1 text-xs font-semibold text-pine-700">
                 {result.source === "CAMPUS" ? "교내" : "교외"} · {result.type === "TUITION" ? "등록금성" : "생활비성"}
               </span>
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <Field label="지급 금액" value={result.amount_text} />
+              <Field label="지급 금액" value={result.amount_text || "미확인"} />
               <Field label="지원 학년" value={result.grade_level} />
               <Field label="신청 시작" value={result.apply_start || "미확인"} />
               <Field label="신청 마감" value={result.apply_end || "미확인"} />

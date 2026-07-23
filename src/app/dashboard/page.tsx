@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import DashboardClient from "@/components/dashboard/dashboard-client";
 import { getPersonalizedScholarships } from "@/lib/onboarding/getPersonalizedScholarships";
 import { getBestScholarshipCombination } from "@/lib/onboarding/getBestCombination";
+import { getDbScholarships } from "@/lib/db-scholarships";
 import type { StudentProfileFull } from "@/types/onboarding";
 
 export default async function DashboardPage() {
@@ -22,8 +23,9 @@ export default async function DashboardPage() {
     redirect("/onboarding/upload");
   }
 
-  const scholarships = getPersonalizedScholarships(savedProfile);
-  const combination = getBestScholarshipCombination(savedProfile);
+  const dbScholarships = await getDbScholarships();
+  const scholarships = getPersonalizedScholarships(savedProfile, dbScholarships);
+  const combination = getBestScholarshipCombination(savedProfile, dbScholarships);
 
   return <DashboardClient scholarships={scholarships} combination={combination} userName={session.user.name ?? null} />;
 }
