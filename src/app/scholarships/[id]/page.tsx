@@ -3,15 +3,17 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { getScholarshipById, SCHOLARSHIP_STATUS_LABELS } from "@/lib/scholarships";
 import type { Scholarship } from "@/lib/scholarships";
+import { getDbScholarshipById } from "@/lib/db-scholarships";
 import FavoriteToggleButton from "@/components/dashboard/favorite-toggle-button";
 
 type Props = {
   params: { id: string };
 };
 
-// getScholarshipById가 이제 Prisma를 조회하는 비동기 함수라 컴포넌트도 async로 바뀌어야 함.
+// getScholarshipById only searches the static seed dataset; admin-uploaded
+// scholarships live in Postgres, so fall back to a DB lookup before 404ing.
 export default async function ScholarshipDetailPage({ params }: Props) {
-  const scholarship = await getScholarshipById(params.id);
+  const scholarship = getScholarshipById(params.id) ?? (await getDbScholarshipById(params.id));
   if (!scholarship) notFound();
 
   const warnings = buildWarnings(scholarship);
