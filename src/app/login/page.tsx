@@ -29,7 +29,7 @@ export default function LoginPage() {
       >
         <p className="text-xs font-bold tracking-[0.3em] text-pine-600">SKKU 학생 전용</p>
         <h2 className="mt-3 text-3xl font-extrabold text-navy-900">로그인</h2>
-        <p className="mt-2 text-navy-500">
+        <p className="mt-2 text-sm text-navy-500">
           학교 Google 계정(g.skku.edu)으로 로그인하고 나에게 맞는 장학금을 찾아보세요.
         </p>
         <div className="mt-8">
