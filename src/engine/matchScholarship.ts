@@ -132,7 +132,7 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
   // 파서로는 애초에 해석이 안 되고, 아래(강원랜드 전용 블록)에서 region_affinity.
   // high_school_sido로 이미 정확히 판별하므로 여기서 또 돌리면 "자동 판별 어려움"이라는
   // 엉뚱한 중복 안내가 하나 더 뜬다 — 여기서는 건너뛴다.
-  if (eligibility.region_requirement && scholarship.id !== "ext-gangwonland-mentoring") {
+  if (eligibility.region_requirement && scholarship.id !== "ext-gangwonland-mentoring" && scholarship.id !== "ext-dongam") {
     // "OO 소재 대학 재학" is a university-location requirement, not a residence one,
     // so it doesn't need profile.region at all. 성균관대학교는 학과가 서울(인문사회)
     // 캠퍼스든 수원(자연과학) 캠퍼스든 관계없이 "서울 소재 대학"으로 인정되는 학교라
@@ -441,16 +441,17 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
     const profileTokens = resolveProfileSpecialStatusTokens(profile);
     const perEntry = eligibility.special_status.map((entry) => ({
       entry,
-      required: detectSpecialStatusCategories(entry),
+      state: evaluateSpecialStatusEntry(entry, profileTokens, profile.income_bracket),
     }));
-    const matchedEntries = perEntry.filter((item) => item.required.some((token) => profileTokens.has(token)));
-    const unparseableEntries = perEntry.filter((item) => item.required.length === 0);
+    const matchedEntries = perEntry.filter((item) => item.state === "met");
+    const unknownEntries = perEntry.filter((item) => item.state === "unknown");
     const met = matchedEntries.length > 0;
 
-    if (!met && unparseableEntries.length > 0) {
-      // Every listed condition failed to resolve to a known category (e.g. "기준중위소득
-      // 60% 이하", which no onboarding question captures) — can't confidently rule the
-      // student out, so ask them to double-check instead of a false rejection.
+    if (!met && unknownEntries.length > 0) {
+      // At least one listed condition couldn't be confidently resolved (e.g.
+      // "기준중위소득 60% 이하" when the student's 소득분위 straddles that
+      // threshold) — can't rule the student out, so ask them to double-check
+      // instead of a false rejection.
       status = status === "지원불가" ? status : "조건부가능";
       reasons.push(`특수신분 조건(${eligibility.special_status.join(", ")})을 자동으로 판별하기 어려워 조건부 가능으로 분류했습니다.`);
       criteria.push({
@@ -461,9 +462,9 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
         actionHint: "공식 공고에서 특수신분 조건을 직접 확인해주세요.",
       });
     } else if (!met) {
-      // At least one condition was confidently parsed and the student's answered
-      // status doesn't cover it — this is a definitive mismatch, not a guess, so
-      // it should drop out of ELIGIBLE/CONDITIONAL rather than staying "조건부가능"
+      // Every condition was confidently resolved and the student's status doesn't
+      // cover any of them — this is a definitive mismatch, not a guess, so it
+      // should drop out of ELIGIBLE/CONDITIONAL rather than staying "조건부가능"
       // forever regardless of what the student actually selected.
       status = "지원불가";
       unmetConditions.push(`특수신분 조건(${eligibility.special_status.join(", ")}) 미충족`);
@@ -595,9 +596,25 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
   // 희망, 교환학생 예정, 신입생 여부 등) directly, since these can't be reliably
   // derived from any other structured field. See CONDITIONAL_GATES below for the
   // exact requirement text each gate maps to.
+  // exchange-plan/stem-track/freshman used to be separate manual confirm questions,
+  // but the fact they ask about is already fully derivable from data collected
+  // elsewhere in onboarding (다음학기 상태, 전공/학과, 학년) — asking again was both
+  // redundant and, whenever the old trigger's own show-condition didn't happen to
+  // match the student, produced a permanently-stuck "아직 답변하지 않았어요" with no
+  // way to ever resolve it. These override whatever (if anything) is in
+  // conditional_answers rather than depending on a stored confirm answer.
+  const derivedAnswers: Record<string, boolean> = {
+    "exchange-plan": isExchangeBound(profile),
+    "stem-track": isStemMajor(profile),
+    freshman: isFreshmanProfile(profile),
+  };
+
   const conditionalGates = CONDITIONAL_GATES[scholarship.id];
   if (conditionalGates) {
-    const conditionalAnswers = (profile as unknown as { conditional_answers?: Record<string, boolean> }).conditional_answers ?? {};
+    const conditionalAnswers = {
+      ...((profile as unknown as { conditional_answers?: Record<string, boolean> }).conditional_answers ?? {}),
+      ...derivedAnswers,
+    };
     for (const gate of conditionalGates) {
       const answer = conditionalAnswers[gate.questionId];
       const key = `conditional_${gate.questionId}_${scholarship.id}`;
@@ -938,6 +955,50 @@ export function matchScholarship(profile: StudentProfile, scholarship: Scholarsh
     }
   }
 
+  // 동암장학회 — "경주시 출생·거주 또는 원적이 경주시 강동면"은 현재 거주지 하나만
+  // 보는 일반 거주지 파서로는 표현이 안 되는 OR 조건이다(출생지·거주지·원적 중 아무거나
+  // 하나). 지역연고 단계에서 이미 받는 본인 출생지/부모 원적·거주지, 그리고 현재
+  // 거주지(common-questions)까지 세 값을 모두 대조한다.
+  if (scholarship.id === "ext-dongam") {
+    const regionPattern = /경주/;
+    const gangdongPattern = /강동면/;
+    const regionAffinity = (profile as unknown as {
+      region_affinity?: { birth_place?: string | null; parent_origin_or_residence?: string | null };
+      region?: { sido?: string | null; sigungu?: string | null };
+    }).region_affinity;
+    const currentRegion = (profile as unknown as { region?: { sido?: string | null; sigungu?: string | null } }).region;
+
+    const candidates = [regionAffinity?.birth_place, regionAffinity?.parent_origin_or_residence, currentRegion?.sido, currentRegion?.sigungu].filter(
+      (value): value is string => Boolean(value),
+    );
+
+    if (candidates.length === 0) {
+      status = status === "지원불가" ? status : "조건부가능";
+      reasons.push("출생지·거주지·원적 정보가 없어 조건부 가능으로 분류했습니다.");
+      criteria.push({
+        key: "region",
+        label: "거주 지역",
+        met: false,
+        detail: "요구 지역: 경주시 출생·거주 또는 원적이 경주시 강동면 / 관련 정보 없음",
+        actionHint: "온보딩에서 출생지·거주지·원적 정보를 입력해주세요.",
+      });
+    } else {
+      const met = candidates.some((value) => regionPattern.test(value) || gangdongPattern.test(value));
+      if (!met) {
+        status = "지원불가";
+        unmetConditions.push("거주 지역 조건(경주시) 미충족");
+        reasons.push("경주시 출생·거주 또는 원적이 강동면인 경우만 지원 가능합니다.");
+      }
+      criteria.push({
+        key: "region",
+        label: "거주 지역",
+        met,
+        detail: `요구 지역: 경주시 출생·거주 또는 원적이 경주시 강동면 / 내 정보: ${candidates.join(", ")}`,
+        actionHint: met ? undefined : "출생지·거주지·원적이 바뀌면 다시 확인해보세요.",
+      });
+    }
+  }
+
   // 강원랜드 멘토링 장학 — region_requirement is about the student's *high school*
   // location ("석탄산업전환지역 소재 고교 출신"), not current residence, so the usual
   // "거주" parser doesn't apply. Checked directly against region_affinity.high_school_sido,
@@ -1182,6 +1243,9 @@ const CONDITIONAL_GATES: Record<
     },
   ],
   "skku-seonggyun-family": [
+    // grade_level 텍스트가 "학부/대학원 신(편)입생"이라 학년 숫자 파서로는 걸러지지
+    // 않는다 — 신입생 여부는 이미 성적표에서 파생되니 별도 질문 없이 바로 게이트.
+    { questionId: "freshman", requireTrue: true, label: "신입생 여부", requirementText: "학부/대학원 신(편)입생만 지원 가능해요." },
     {
       questionId: "family-alumni",
       requireTrue: true,
@@ -1210,7 +1274,9 @@ const CAREER_INTEREST_GATES: Record<string, { interest: string; requirementText:
 // knows to verify manually.
 const MANUAL_VERIFICATION_REQUIRED: Record<string, string> = {
   "ext-inmun-100nyeon": "이수학점이 졸업요건의 40% 이상인지는 학과별 졸업 필요 학점 정보가 없어 자동 판별이 어려워요.",
-  "ext-hyundai-cmk": "전문대 재학 여부는 자동 판별이 어려워요. 4년제 대학 재학생만 지원 가능해요.",
+  // 현대차CMK의 "전문대 재학생 지원 불가"는 이 앱 사용자가 전부 성균관대(4년제)
+  // 재학생이라 애초에 해당될 일이 없는 조건이라 별도 안내가 필요 없다 — 소득 조건은
+  // income_bracket_max로 이미 정확히 반영돼 있다.
   "ext-surim": "대학 1학년 때 24학점 이상 이수했는지는 학년별 이수학점 정보가 없어 자동 판별이 어려워요.",
   "ext-songpa-injae": "가구(세대)당 1명 선발 원칙과 직전 학기 수혜 이력은 자동 판별이 어려워요.",
   "ext-lotte-sinkyeokho": "1~7기 기수혜 이력은 자동 판별이 어려워요.",
@@ -1245,6 +1311,36 @@ function resolveProfileSpecialStatusTokens(profile: StudentProfile): Set<string>
 // requiring byte-for-byte string equality. Returns an empty array when nothing
 // recognizable is found (e.g. "기준중위소득 60% 이하") — callers should treat that
 // as "can't tell" rather than "doesn't match".
+// "기준중위소득 X% 이하" doesn't line up with 소득분위 구간 boundaries (예: 60%는
+// 2구간 상한 50%와 3구간 상한 70% 사이), so only 구간 전체가 확실히 그 기준 이하이거나
+// 확실히 초과인 경우만 단정하고, 딱 걸치는 구간은 안전하게 "unknown"으로 둔다.
+const INCOME_BRACKET_CEILINGS = [30, 50, 70, 90, 100, 130, 150, 200]; // 1~8구간, 기준중위소득 %
+function evaluateMedianIncomeThreshold(text: string, incomeBracket: number | null): "met" | "failed" | "unknown" | null {
+  const match = text.match(/기준중위소득\s*(\d+)\s*%\s*이하/);
+  if (!match) return null;
+  const percentage = Number(match[1]);
+  if (incomeBracket == null) return "unknown";
+  if (incomeBracket >= 9) return "failed"; // 9~10구간은 300%+ 이므로 실질적으로 어떤 기준보다도 높음
+  const bracketCeiling = INCOME_BRACKET_CEILINGS[incomeBracket - 1];
+  if (bracketCeiling == null) return "unknown";
+  if (bracketCeiling <= percentage) return "met";
+  const prevBracketCeiling = incomeBracket > 1 ? INCOME_BRACKET_CEILINGS[incomeBracket - 2] : 0;
+  if (prevBracketCeiling >= percentage) return "failed";
+  return "unknown";
+}
+
+function evaluateSpecialStatusEntry(
+  entry: string,
+  profileTokens: Set<string>,
+  incomeBracket: number | null,
+): "met" | "failed" | "unknown" {
+  const incomeResult = evaluateMedianIncomeThreshold(entry, incomeBracket);
+  if (incomeResult) return incomeResult;
+  const required = detectSpecialStatusCategories(entry);
+  if (required.length === 0) return "unknown";
+  return required.some((token) => profileTokens.has(token)) ? "met" : "failed";
+}
+
 function detectSpecialStatusCategories(text: string): string[] {
   const found: string[] = [];
   const hasBasicLivelihood = /기초생활수급/.test(text);
@@ -1292,6 +1388,28 @@ function detectEnrollmentExclusions(text: string): Set<string> {
 // "대한민국 국적자" (positive requirement) or "외국인 ... 제외/불가" (explicit
 // exclusion) — both boil down to the same gate: 외국인 nationality doesn't qualify,
 // 내국인/재외국민 do.
+// 신입생 여부는 성적표에서 이미 파생돼 있다(regular_semester_labels 개수로 계산된
+// grade_level/semester_progress) — 별도로 "신입생인가요?" 물어볼 필요가 없다.
+function isFreshmanProfile(profile: StudentProfile): boolean {
+  const semesterProgress = (profile as unknown as { semester_progress?: string | null }).semester_progress;
+  return profile.grade_level === "1" || semesterProgress?.startsWith("1-") === true;
+}
+
+// 이공계 여부는 학과명(전공)에서 바로 판별 가능하다 — "전공계열이 자연/공학 계열인가요?"
+// 라고 다시 확인 질문을 띄울 이유가 없다.
+function isStemMajor(profile: StudentProfile): boolean {
+  const major = (profile.major ?? "").toLowerCase();
+  return /공학|전자|전기|컴퓨터|소프트웨어|기계|산업|화학|생명|바이오|자연/.test(major);
+}
+
+// 교환학생 파견 예정 여부는 온보딩 공통질문의 "다음 학기 상태"(재학/휴학/교환학생파견
+// 등)에 이미 포함돼 있다 — 별도 확인 질문 없이 바로 쓸 수 있다.
+function isExchangeBound(profile: StudentProfile): boolean {
+  const nextSemesterStatus = (profile as unknown as { next_semester_status?: string | null }).next_semester_status;
+  const exchangeDetected = (profile as unknown as { exchange_semester_detected?: boolean | null }).exchange_semester_detected;
+  return nextSemesterStatus === "교환학생파견" || Boolean(exchangeDetected);
+}
+
 function detectForeignExclusion(text: string): boolean {
   if (/대한민국\s*국적자/.test(text)) return true;
   for (const match of text.matchAll(/제외|불가/g)) {

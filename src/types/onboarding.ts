@@ -181,11 +181,11 @@ export const CONDITIONAL_TRIGGERS: ConditionalTrigger[] = [
   },
   {
     trigger_id: "exam-qualification",
-    // IT/블록체인, 언론/미디어, 농업/창업 진로는 온보딩의 희망 진로 체크박스 선택 자체가
-    // 이미 명확한 답이라 별도 확인 질문 없이 career_interests로 바로 게이트한다
-    // (matchScholarship.ts의 CAREER_INTEREST_GATES 참고). 고시/전문자격만 "관심"과
-    // "이미 합격"이 다른 사실이라 체크 이후 한 번 더 확인 질문이 필요하다.
-    condition: (profile) => Boolean(profile.career_interests?.includes("고시/전문자격")),
+    // 처음엔 "고시/전문자격" 진로 체크박스를 먼저 골라야만 이 질문이 뜨게 했는데, 그
+    // 체크박스를 안 고르면 정작 필요한 이 확인 질문 자체를 영영 볼 수 없어서 공로(고시)
+    // 장학금이 항상 "아직 답변하지 않았어요"로만 남는 문제가 있었다. 이건 온보딩에서
+    // 다른 데이터로 대체 판별할 방법이 없는 유일한 질문이라 조건 없이 항상 보여준다.
+    condition: () => true,
     questions: [
       {
         id: "exam-path",
@@ -343,12 +343,15 @@ export const CONDITIONAL_TRIGGERS: ConditionalTrigger[] = [
 // Only these trigger_ids correspond to a real, unambiguous pass/fail requirement —
 // those are the ones actually asked and used to gate matching. The rest stay defined
 // above (useful reference / future candidates) but are intentionally not surfaced.
+// exchange-plan, stem-engineering, hyundai-cmk, freshman used to ask a manual
+// confirm question for facts already derivable from onboarding data the student
+// already provided (next_semester_status/exchange_semester_detected, department/
+// major text, grade_level/semester_progress respectively) — asking again just
+// produced a redundant question and, worse, a permanently-stuck "아직 답변하지
+// 않았어요" state whenever the trigger's own show-condition didn't match. Those are
+// now derived directly in matchScholarship.ts instead of being wired here.
 export const WIRED_TRIGGER_IDS = [
-  "exchange-plan",
-  "stem-engineering",
-  "hyundai-cmk",
   "research-plan",
-  "freshman",
   "exam-qualification",
   "skku-family-alumni",
   "medical-ai-track",
